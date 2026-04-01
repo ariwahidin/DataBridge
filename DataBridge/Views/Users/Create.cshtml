@@ -1,0 +1,153 @@
+@* FILE: Views/Users/Create.cshtml *@
+@model DataBridge.Models.ViewModels.Users.UserCreateViewModel
+@{
+    ViewData["Title"] = "New User";
+}
+
+<div class="page-header">
+    <div>
+        <div class="page-title">New User</div>
+        <div class="page-subtitle">Create a new system account</div>
+    </div>
+    <div class="page-actions">
+        <a href="/Users" class="btn btn-secondary">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+            Back to Users
+        </a>
+    </div>
+</div>
+
+<div style="max-width:560px;">
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Account Details</span>
+        </div>
+        <div class="card-body">
+
+            @if (!ViewData.ModelState.IsValid && ViewData.ModelState.Values.Any(v => v.Errors.Count > 0))
+            {
+                <div class="alert alert-danger">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <div>
+                        @foreach (var err in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                        {
+                            <div>@err.ErrorMessage</div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <form method="post" action="/Users/Create">
+                @Html.AntiForgeryToken()
+
+                <div class="form-group">
+                    <label class="form-label">Username <span style="color:var(--danger)">*</span></label>
+                    <input asp-for="Username" class="form-control @(ViewData.ModelState["Username"]?.Errors.Count > 0 ? "is-invalid" : "")"
+                           placeholder="e.g. john.doe" autocomplete="off" />
+                    <div class="form-hint">Letters, numbers, dots, dashes, underscores only</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Full Name <span style="color:var(--danger)">*</span></label>
+                    <input asp-for="FullName" class="form-control @(ViewData.ModelState["FullName"]?.Errors.Count > 0 ? "is-invalid" : "")"
+                           placeholder="e.g. John Doe" />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Email <span style="color:var(--danger)">*</span></label>
+                    <input asp-for="Email" type="email" class="form-control @(ViewData.ModelState["Email"]?.Errors.Count > 0 ? "is-invalid" : "")"
+                           placeholder="e.g. john@company.com" />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Role <span style="color:var(--danger)">*</span></label>
+                    <select asp-for="Role" class="form-control">
+                        <option value="">— Select role —</option>
+                        <option value="1">Admin</option>
+                        <option value="2">Viewer</option>
+                    </select>
+                    <div class="form-hint">Admin can manage users and all configurations. Viewer has read-only access.</div>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <div class="form-group">
+                    <label class="form-label">Password <span style="color:var(--danger)">*</span></label>
+                    <div style="position:relative;">
+                        <input asp-for="Password" type="password" id="pw1"
+                               class="form-control @(ViewData.ModelState["Password"]?.Errors.Count > 0 ? "is-invalid" : "")"
+                               placeholder="Min. 6 characters" style="padding-right:36px;" />
+                        <button type="button" class="toggle-pw-btn" onclick="togglePw('pw1','eye1')">
+                            <svg id="eye1" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Confirm Password <span style="color:var(--danger)">*</span></label>
+                    <div style="position:relative;">
+                        <input asp-for="ConfirmPassword" type="password" id="pw2"
+                               class="form-control @(ViewData.ModelState["ConfirmPassword"]?.Errors.Count > 0 ? "is-invalid" : "")"
+                               placeholder="Re-enter password" style="padding-right:36px;" />
+                        <button type="button" class="toggle-pw-btn" onclick="togglePw('pw2','eye2')">
+                            <svg id="eye2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <div class="form-group" style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+                    <input asp-for="IsActive" type="checkbox" id="isActive"
+                           style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;" />
+                    <label for="isActive" style="font-size:13px;cursor:pointer;color:var(--text-secondary);">
+                        Account is active (user can log in immediately)
+                    </label>
+                </div>
+
+                <div style="display:flex;gap:8px;">
+                    <button type="submit" class="btn btn-primary">
+                        <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        Create User
+                    </button>
+                    <a href="/Users" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Styles {
+<style>
+.toggle-pw-btn {
+    position: absolute;
+    right: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 4px;
+    display: flex;
+    border-radius: 4px;
+    transition: color 0.18s, background 0.18s;
+}
+.toggle-pw-btn:hover { color: var(--text-secondary); background: var(--bg-hover); }
+.toggle-pw-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+</style>
+}
+
+@section Scripts {
+<script>
+function togglePw(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon  = document.getElementById(iconId);
+    const show  = input.type === 'password';
+    input.type  = show ? 'text' : 'password';
+    icon.innerHTML = show
+        ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+        : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+}
+</script>
+}

@@ -26,6 +26,7 @@ builder.Services.AddHttpContextAccessor();
 // Repositories & Services
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<DataBridge.Services.UserService>();
 
 builder.Services.AddSession(options =>
 {
@@ -52,6 +53,12 @@ app.UseAuthorization();
 
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Auth}/{action=Login}/{id?}");
+    pattern: "{controller=Auth}/{action=Index}/{id?}");
+
+// Fallback: /Auth ? /Auth/Login (karena Auth tidak punya Index)
+app.MapControllerRoute(
+    name: "auth_login",
+    pattern: "Auth",
+    defaults: new { controller = "Auth", action = "Login" });
 
 app.Run();
