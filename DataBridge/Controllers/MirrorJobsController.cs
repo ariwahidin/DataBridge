@@ -88,31 +88,26 @@ namespace DataBridge.Controllers
             return Json(new { success = ok, error = err });
         }
 
-        // ── NEW: Manual trigger ─────────────────────────────────────────────────
+        // ── REAL manual trigger ───────────────────────────────────────────────
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> TriggerRun(int id)
         {
+            var username = HttpContext.Session.GetString("Username") ?? "Manual";
             var (ok, err) = await _svc.TriggerRunAsync(id);
             return Json(new { success = ok, error = err });
         }
 
-        // ── NEW: Test source query ──────────────────────────────────────────────
-        /// <summary>
-        /// Validates + test-executes a SQL query against a given source.
-        /// Body: { sourceId: int, query: string }
-        /// </summary>
+        // ── Test query ────────────────────────────────────────────────────────
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> TestQuery([FromBody] TestQueryRequest req)
         {
             if (req.SourceId <= 0 || string.IsNullOrWhiteSpace(req.Query))
                 return Json(new { success = false, error = "sourceId and query are required." });
 
-            // Static safety check first (no DB round-trip needed).
             var safetyError = MirrorJobService.CheckQuerySafety(req.Query);
             if (safetyError != null)
                 return Json(new { success = false, error = safetyError });
 
-            // Load connection string.
             var source = await _sourceRepo.GetByIdAsync(req.SourceId);
             if (source == null)
                 return Json(new { success = false, error = "Source not found." });
@@ -121,7 +116,6 @@ namespace DataBridge.Controllers
             return Json(new { success = ok, error = err, columnCount = colCount });
         }
 
-        // ── Helpers ─────────────────────────────────────────────────────────────
         private async Task<MirrorJobFormViewModel> RepopulateAsync(MirrorJobFormViewModel vm)
         {
             var fresh = await _svc.GetEmptyFormAsync();

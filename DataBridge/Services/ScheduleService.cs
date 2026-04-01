@@ -1,20 +1,22 @@
-﻿using DataBridge.Models.Entities;
+﻿using DataBridge.Data;
+using DataBridge.Models.Entities;
 using DataBridge.Models.ViewModels.Schedules;
 using DataBridge.Repositories.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace DataBridge.Services
 {
     public class ScheduleService
     {
         private readonly IMirrorJobRepository _jobRepo;
-        private readonly ISourceRepository _sourceRepo;
-        private readonly Data.AppDbContext _ctx;
+        private readonly AppDbContext _ctx;
+        private readonly QuartzSchedulerManager _quartz;
 
-        public ScheduleService(IMirrorJobRepository jobRepo, ISourceRepository sourceRepo, Data.AppDbContext ctx)
+        public ScheduleService(IMirrorJobRepository jobRepo, AppDbContext ctx, QuartzSchedulerManager quartz)
         {
             _jobRepo = jobRepo;
-            _sourceRepo = sourceRepo;
             _ctx = ctx;
+            _quartz = quartz;
         }
 
         public async Task<ScheduleListViewModel> GetListAsync()
@@ -29,6 +31,7 @@ namespace DataBridge.Services
                     JobName = j.Name,
                     SourceName = j.Source.Name,
                     CronExpression = j.Schedule.CronExpression,
+                    CronLabel = QuartzSchedulerManager.ToLabel(j.Schedule.CronExpression),
                     IsEnabled = j.Schedule.IsEnabled,
                     LastRunAt = j.Schedule.LastRunAt,
                     NextRunAt = j.Schedule.NextRunAt,
@@ -46,7 +49,7 @@ namespace DataBridge.Services
                 Id = job.Schedule?.Id ?? 0,
                 MirrorJobId = mirrorJobId,
                 JobName = job.Name,
-                CronExpression = job.Schedule?.CronExpression ?? "0 0 * * *",
+                CronExpression = job.Schedule?.CronExpression ?? "every:1:hour",
                 IsEnabled = job.Schedule?.IsEnabled ?? true,
             };
         }
@@ -65,27 +68,39 @@ namespace DataBridge.Services
                     IsEnabled = vm.IsEnabled,
                     CreatedAt = DateTime.Now,
                 };
-                await _ctx.JobSchedules.AddAsync(schedule);
+                _ctx.JobSchedules.Add(schedule);
             }
             else
             {
                 job.Schedule.CronExpression = vm.CronExpression.Trim();
                 job.Schedule.IsEnabled = vm.IsEnabled;
                 job.Schedule.UpdatedAt = DateTime.Now;
-                _ctx.JobSchedules.Update(job.Schedule);
             }
 
             await _ctx.SaveChangesAsync();
+
+            // Sync Quartz
+            if (vm.IsEnabled && job.IsActive)
+                await _quartz.ScheduleJobAsync(vm.MirrorJobId, vm.CronExpression.Trim());
+            else
+                await _quartz.UnscheduleJobAsync(vm.MirrorJobId);
+
             return (true, null);
         }
 
         public async Task<(bool Success, string? Error)> ToggleAsync(int scheduleId)
         {
-            var s = await _ctx.JobSchedules.FindAsync(scheduleId);
+            var s = await _ctx.JobSchedules.Include(x => x.MirrorJob).FirstOrDefaultAsync(x => x.Id == scheduleId);
             if (s == null) return (false, "Schedule not found.");
             s.IsEnabled = !s.IsEnabled;
             s.UpdatedAt = DateTime.Now;
             await _ctx.SaveChangesAsync();
+
+            if (s.IsEnabled && s.MirrorJob.IsActive)
+                await _quartz.ScheduleJobAsync(s.MirrorJobId, s.CronExpression);
+            else
+                await _quartz.UnscheduleJobAsync(s.MirrorJobId);
+
             return (true, null);
         }
 
@@ -93,6 +108,7 @@ namespace DataBridge.Services
         {
             var s = await _ctx.JobSchedules.FindAsync(scheduleId);
             if (s == null) return (false, "Schedule not found.");
+            await _quartz.UnscheduleJobAsync(s.MirrorJobId);
             _ctx.JobSchedules.Remove(s);
             await _ctx.SaveChangesAsync();
             return (true, null);

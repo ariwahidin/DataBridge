@@ -4,56 +4,175 @@
 }
 
 <div class="page-header">
-    <div><div class="page-title">Configure Schedule</div><div class="page-subtitle">@Model.JobName</div></div>
-    <div class="page-actions"><a href="/Schedules" class="btn btn-secondary"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>Back</a></div>
+    <div>
+        <div class="page-title">Configure Schedule</div>
+        <div class="page-subtitle">@Model.JobName</div>
+    </div>
+    <div class="page-actions">
+        <a href="/Schedules" class="btn btn-secondary">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+            Back
+        </a>
+    </div>
 </div>
 
-<div style="max-width:560px;">
+<div style="max-width:580px;">
     <div class="card">
         <div class="card-header"><span class="card-title">Schedule Settings</span></div>
         <div class="card-body">
-            <form method="post" action="/Schedules/Configure">
+
+            <form method="post" action="/Schedules/Configure" id="schedForm">
                 @Html.AntiForgeryToken()
                 <input asp-for="Id" type="hidden" />
                 <input asp-for="MirrorJobId" type="hidden" />
                 <input asp-for="JobName" type="hidden" />
+                <input asp-for="CronExpression" type="hidden" id="cronExpressionHidden" />
 
+                @* ── Schedule type selector ── *@
                 <div class="form-group">
-                    <label class="form-label">Cron Expression <span style="color:var(--danger)">*</span></label>
-                    <input asp-for="CronExpression" class="form-control" placeholder="0 0 * * *" />
-                    <div class="form-hint">Standard 5-field cron. Examples: <code style="font-family:var(--mono);font-size:11.5px;">0 2 * * *</code> = daily 2AM, <code style="font-family:var(--mono);font-size:11.5px;">0 */6 * * *</code> = every 6h, <code style="font-family:var(--mono);font-size:11.5px;">0 8 * * 1</code> = Monday 8AM</div>
-                </div>
+                    <label class="form-label">Schedule Type <span style="color:var(--danger)">*</span></label>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;" id="typeGrid">
 
-                <!-- Quick presets -->
-                <div style="margin-bottom:16px;">
-                    <div class="form-label" style="margin-bottom:8px;">Quick Presets</div>
-                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                        @foreach (var p in new[] {
-                                                ("Every hour", "0 * * * *"),
-                                                ("Every 6h", "0 */6 * * *"),
-                                                ("Daily 1AM", "0 1 * * *"),
-                                                ("Daily midnight", "0 0 * * *"),
-                                                ("Mon–Fri 7AM", "0 7 * * 1-5"),
-                                                ("Weekly Sunday", "0 0 * * 0"),
+                        @foreach (var opt in new[] {
+                                                ("every_minute", "Every N Minutes", "clock"),
+                                                ("every_hour",   "Every N Hours",   "refresh-cw"),
+                                                ("daily",        "Daily",           "sun"),
+                                                ("weekly",       "Weekly",          "calendar"),
+                                                ("weekday",      "Weekdays",        "briefcase"),
+                                                ("custom",       "Custom Cron",     "code"),
                                                 })
                         {
-                            <button type="button" class="btn btn-secondary btn-sm"
-                                    onclick="document.getElementById('CronExpression').value='@p.Item2'">
-                                @p.Item1
-                            </button>
+                            <label class="sched-type-btn @(Model.ScheduleType == opt.Item1 ? "selected" : "")">
+                                <input type="radio" name="ScheduleType" value="@opt.Item1"
+                                       @(Model.ScheduleType == opt.Item1 ? "checked" : "")
+                                       onchange="showPanel('@opt.Item1')" />
+                                <span>@opt.Item2</span>
+                            </label>
                         }
                     </div>
                 </div>
 
-                <div class="form-group" style="display:flex;align-items:center;gap:10px;">
-                    <input asp-for="IsEnabled" type="checkbox" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;" />
-                    <label style="font-size:13px;color:var(--text-secondary);">Schedule is enabled</label>
+                @* ── Every N minutes ── *@
+                <div class="sched-panel" id="panel_every_minute"
+                     style="display:@(Model.ScheduleType == "every_minute" ? "block" : "none")">
+                    <div class="form-group">
+                        <label class="form-label">Every how many minutes?</label>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <input asp-for="EveryMinutes" type="number" min="1" max="59"
+                                   class="form-control" style="width:100px;" id="everyMinInput"
+                                   oninput="updatePreview()" />
+                            <span style="font-size:13px;color:var(--text-secondary);">minutes</span>
+                        </div>
+                        <div class="form-hint">Range: 1–59 minutes</div>
+                    </div>
+                </div>
+
+                @* ── Every N hours ── *@
+                <div class="sched-panel" id="panel_every_hour"
+                     style="display:@(Model.ScheduleType == "every_hour" ? "block" : "none")">
+                    <div class="form-group">
+                        <label class="form-label">Every how many hours?</label>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <input asp-for="EveryHours" type="number" min="1" max="23"
+                                   class="form-control" style="width:100px;" id="everyHourInput"
+                                   oninput="updatePreview()" />
+                            <span style="font-size:13px;color:var(--text-secondary);">hours</span>
+                        </div>
+                        <div class="form-hint">Range: 1–23 hours</div>
+                    </div>
+                </div>
+
+                @* ── Daily ── *@
+                <div class="sched-panel" id="panel_daily"
+                     style="display:@(Model.ScheduleType == "daily" ? "block" : "none")">
+                    <div class="form-group">
+                        <label class="form-label">Run at</label>
+                        <input asp-for="DailyTime" type="time" class="form-control" style="width:140px;"
+                               id="dailyTimeInput" oninput="updatePreview()" />
+                        <div class="form-hint">Runs once every day at this time</div>
+                    </div>
+                </div>
+
+                @* ── Weekly ── *@
+                <div class="sched-panel" id="panel_weekly"
+                     style="display:@(Model.ScheduleType == "weekly" ? "block" : "none")">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="form-group">
+                            <label class="form-label">Day of week</label>
+                            <select asp-for="WeeklyDay" class="form-control" id="weeklyDayInput"
+                                    onchange="updatePreview()">
+                                <option value="0">Sunday</option>
+                                <option value="1">Monday</option>
+                                <option value="2">Tuesday</option>
+                                <option value="3">Wednesday</option>
+                                <option value="4">Thursday</option>
+                                <option value="5">Friday</option>
+                                <option value="6">Saturday</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">At time</label>
+                            <input asp-for="WeeklyTime" type="time" class="form-control"
+                                   id="weeklyTimeInput" oninput="updatePreview()" />
+                        </div>
+                    </div>
+                </div>
+
+                @* ── Weekday ── *@
+                <div class="sched-panel" id="panel_weekday"
+                     style="display:@(Model.ScheduleType == "weekday" ? "block" : "none")">
+                    <div class="form-group">
+                        <label class="form-label">Run at (Mon–Fri)</label>
+                        <input asp-for="WeekdayTime" type="time" class="form-control" style="width:140px;"
+                               id="weekdayTimeInput" oninput="updatePreview()" />
+                        <div class="form-hint">Runs every weekday (Mon–Fri) at this time</div>
+                    </div>
+                </div>
+
+                @* ── Custom cron ── *@
+                <div class="sched-panel" id="panel_custom"
+                     style="display:@(Model.ScheduleType == "custom" ? "block" : "none")">
+                    <div class="form-group">
+                        <label class="form-label">Quartz 6-field cron expression</label>
+                        <input asp-for="CustomCron" class="form-control" style="font-family:var(--mono);"
+                               placeholder="0 */5 * * * ?" id="customCronInput"
+                               oninput="updatePreview()" />
+                        <div class="form-hint">
+                            Format: <code style="font-family:var(--mono);font-size:11px;">seconds minutes hours day-of-month month day-of-week</code><br />
+                            Examples: <code style="font-family:var(--mono);font-size:11px;">0 */5 * * * ?</code> = every 5 min,
+                            <code style="font-family:var(--mono);font-size:11px;">0 30 9 * * MON-FRI</code> = weekdays 9:30AM
+                        </div>
+                    </div>
+                </div>
+
+                @* ── Preview ── *@
+                <div style="background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-md);
+                            padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+                    <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:var(--accent);fill:none;stroke-width:2;flex-shrink:0;">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    <span style="font-size:12.5px;color:var(--text-secondary);">
+                        Preview: <strong id="schedPreview" style="color:var(--text-primary);font-family:var(--mono);font-size:12px;">—</strong>
+                    </span>
+                </div>
+
+                @* ── Enable toggle ── *@
+                <div class="form-group" style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+                    <input asp-for="IsEnabled" type="checkbox"
+                           style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;" />
+                    <label style="font-size:13px;color:var(--text-secondary);cursor:pointer;">
+                        Enable this schedule immediately after saving
+                    </label>
                 </div>
 
                 <div class="section-divider"></div>
                 <div style="display:flex;gap:8px;">
-                    <button type="submit" class="btn btn-primary">
-                        <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /></svg>
+                    <button type="submit" class="btn btn-primary" onclick="buildAndSubmit(event)">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                            <polyline points="17 21 17 13 7 13 7 21" />
+                        </svg>
                         Save Schedule
                     </button>
                     <a href="/Schedules" class="btn btn-secondary">Cancel</a>
@@ -62,3 +181,109 @@
         </div>
     </div>
 </div>
+
+@section Styles {
+    <style>
+        .sched-type-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 10px 8px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            background: var(--bg-surface);
+            transition: all 0.15s;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.3;
+        }
+
+            .sched-type-btn input[type=radio] {
+                display: none;
+            }
+
+            .sched-type-btn:hover {
+                background: var(--bg-hover);
+                border-color: var(--border-strong);
+                color: var(--text-primary);
+            }
+
+            .sched-type-btn.selected {
+                background: var(--bg-active);
+                border-color: var(--accent);
+                color: var(--accent-text);
+                font-weight: 500;
+            }
+    </style>
+}
+
+@section Scripts {
+    <script>
+        let currentType = '@Model.ScheduleType';
+
+        function showPanel(type) {
+            currentType = type;
+            document.querySelectorAll('.sched-panel').forEach(p => p.style.display = 'none');
+            document.querySelectorAll('.sched-type-btn').forEach(b => b.classList.remove('selected'));
+            const panel = document.getElementById('panel_' + type);
+            if (panel) panel.style.display = 'block';
+            // Mark selected label
+            document.querySelectorAll('input[name="ScheduleType"]').forEach(r => {
+                if (r.value === type) r.closest('.sched-type-btn').classList.add('selected');
+            });
+            updatePreview();
+        }
+
+        function buildExpression() {
+            const v = (id) => {
+                const el = document.getElementById(id);
+                return el ? el.value : '';
+            };
+
+            switch (currentType) {
+                case 'every_minute': return `every:${v('everyMinInput')||5}:minute`;
+                case 'every_hour':   return `every:${v('everyHourInput')||1}:hour`;
+                case 'daily':        return `daily:${(v('dailyTimeInput')||'08:00').replace(':', ':')}`;
+                case 'weekly': {
+                    const t = (v('weeklyTimeInput')||'08:00').split(':');
+                    return `weekly:${v('weeklyDayInput')||1}:${t[0]}:${t[1]}`;
+                }
+                case 'weekday': {
+                    return `weekday:${(v('weekdayTimeInput')||'08:00').replace(':', ':')}`;
+                }
+                case 'custom': return v('customCronInput') || '0 */5 * * * ?';
+                default: return 'every:5:minute';
+            }
+        }
+
+        function toLabel(expr) {
+            const p = expr.split(':');
+            if (p[0] === 'every' && p[2] === 'minute') return `Every ${p[1]} minute(s)`;
+            if (p[0] === 'every' && p[2] === 'hour')   return `Every ${p[1]} hour(s)`;
+            if (p[0] === 'daily')   return `Daily at ${p[1]}:${p[2]}`;
+            if (p[0] === 'weekly') {
+                const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+                return `Every ${days[parseInt(p[1])%7]} at ${p[2]}:${p[3]}`;
+            }
+            if (p[0] === 'weekday') return `Mon–Fri at ${p[1]}:${p[2]}`;
+            return expr;
+        }
+
+        function updatePreview() {
+            const expr = buildExpression();
+            document.getElementById('schedPreview').textContent = toLabel(expr);
+        }
+
+        function buildAndSubmit(e) {
+            // Write the expression into the hidden field before form submits
+            document.getElementById('cronExpressionHidden').value = buildExpression();
+        }
+
+        // Init on load
+        showPanel(currentType);
+    </script>
+}

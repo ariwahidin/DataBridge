@@ -7,6 +7,7 @@ namespace DataBridge.Controllers
     public class SchedulesController : Controller
     {
         private readonly ScheduleService _svc;
+
         public SchedulesController(ScheduleService svc) => _svc = svc;
 
         private void SetBreadcrumb(params (string Label, string Url)[] extra)
@@ -30,6 +31,7 @@ namespace DataBridge.Controllers
             SetBreadcrumb(("Schedules", "/Schedules"));
             var vm = await _svc.GetForJobAsync(jobId);
             if (vm == null) return NotFound();
+            vm.ParseCronExpression(); // populate UI fields from stored expression
             return View(vm);
         }
 
@@ -38,7 +40,12 @@ namespace DataBridge.Controllers
         {
             ViewData["Title"] = "Configure Schedule";
             SetBreadcrumb(("Schedules", "/Schedules"));
+
+            // Build the CronExpression from UI fields before validation
+            vm.BuildCronExpression();
+
             if (!ModelState.IsValid) return View(vm);
+
             var (ok, err) = await _svc.SaveAsync(vm);
             if (!ok) { ModelState.AddModelError("", err!); return View(vm); }
             TempData["Success"] = "Schedule saved.";

@@ -10,11 +10,19 @@ namespace DataBridge.Services
     {
         private readonly IMirrorJobRepository _jobRepo;
         private readonly ISourceRepository _sourceRepo;
+        private readonly MirrorExecutionService _executor;
+        private readonly QuartzSchedulerManager _quartz;
 
-        public MirrorJobService(IMirrorJobRepository jobRepo, ISourceRepository sourceRepo)
+        public MirrorJobService(
+            IMirrorJobRepository jobRepo,
+            ISourceRepository sourceRepo,
+            MirrorExecutionService executor,
+            QuartzSchedulerManager quartz)
         {
             _jobRepo = jobRepo;
             _sourceRepo = sourceRepo;
+            _executor = executor;
+            _quartz = quartz;
         }
 
         public async Task<MirrorJobListViewModel> GetListAsync(string? search)
@@ -40,6 +48,9 @@ namespace DataBridge.Services
                     HasSchedule = j.Schedule != null,
                     ScheduleEnabled = j.Schedule?.IsEnabled ?? false,
                     CronExpression = j.Schedule?.CronExpression,
+                    CronLabel = j.Schedule != null
+                        ? QuartzSchedulerManager.ToLabel(j.Schedule.CronExpression)
+                        : null,
                     LastRunAt = j.Schedule?.LastRunAt,
                     CreatedAt = j.CreatedAt,
                 }).ToList(),
@@ -115,6 +126,7 @@ namespace DataBridge.Services
         {
             var job = await _jobRepo.GetByIdWithDetailsAsync(id);
             if (job == null) return (false, "Job not found.");
+            await _quartz.UnscheduleJobAsync(id);
             await _jobRepo.DeleteAsync(id);
             return (true, null);
         }
@@ -125,58 +137,44 @@ namespace DataBridge.Services
             if (job == null) return (false, "Job not found.");
             job.IsActive = !job.IsActive;
             await _jobRepo.UpdateAsync(job);
+
+            // Sync Quartz
+            if (!job.IsActive)
+                await _quartz.UnscheduleJobAsync(id);
+            else if (job.Schedule?.IsEnabled == true)
+                await _quartz.ScheduleJobAsync(id, job.Schedule.CronExpression);
+
             return (true, null);
         }
 
-        // ── NEW: Manual trigger ─────────────────────────────────────────────────
-        /// <summary>
-        /// Manually triggers a mirror job run (placeholder – wire up your real
-        /// execution logic / background service here).
-        /// </summary>
+        // ── REAL manual trigger ───────────────────────────────────────────────
         public async Task<(bool Success, string? Error)> TriggerRunAsync(int id)
         {
             var job = await _jobRepo.GetByIdWithDetailsAsync(id);
             if (job == null) return (false, "Job not found.");
-            if (!job.IsActive) return (false, "Job is inactive. Activate it before triggering.");
+            if (!job.IsActive) return (false, "Job is inactive. Activate it first.");
 
-            // TODO: enqueue to your actual job runner / Hangfire / background service.
-            // For now we just return success so the UI wiring is in place.
-            await Task.CompletedTask;
+            // Fire via Quartz so [DisallowConcurrentExecution] is respected
+            await _quartz.TriggerNowAsync(id);
             return (true, null);
         }
 
-        // ── NEW: Validate source query ──────────────────────────────────────────
-        /// <summary>
-        /// Validates that <paramref name="sql"/> is safe (SELECT / CTE only) and
-        /// optionally test-executes it against the source connection string.
-        /// Returns (true, null) on success, or (false, errorMessage) on failure.
-        /// </summary>
+        // ── Query validation (unchanged) ──────────────────────────────────────
         public async Task<(bool Success, string? Error, int? RowCount)> ValidateSourceQueryAsync(
             string connectionString, string sql)
         {
-            // ── 1. Static safety check ──────────────────────────────────────────
             var safetyError = CheckQuerySafety(sql);
-            if (safetyError != null)
-                return (false, safetyError, null);
+            if (safetyError != null) return (false, safetyError, null);
 
-            // ── 2. Live execution test (TOP 1 wrapped) ──────────────────────────
             try
             {
-                // Wrap user query so we never fetch more than 1 row during a test.
-                var wrappedSql = $"SELECT TOP 1 * FROM ({sql}) AS __test__";
-
+                var wrapped = $"SELECT TOP 1 * FROM ({sql}) AS __test__";
                 using var conn = new SqlConnection(connectionString);
                 await conn.OpenAsync();
-
-                using var cmd = new SqlCommand(wrappedSql, conn);
-                cmd.CommandTimeout = 30;
-
-                // Count columns as a lightweight "it ran" confirmation.
+                using var cmd = new SqlCommand(wrapped, conn) { CommandTimeout = 30 };
                 using var reader = await cmd.ExecuteReaderAsync(
                     System.Data.CommandBehavior.SchemaOnly | System.Data.CommandBehavior.SingleRow);
-
-                int colCount = reader.FieldCount;
-                return (true, null, colCount);
+                return (true, null, reader.FieldCount);
             }
             catch (Exception ex)
             {
@@ -184,49 +182,30 @@ namespace DataBridge.Services
             }
         }
 
-        // ── Safety validator ────────────────────────────────────────────────────
-        /// <summary>
-        /// Returns an error string if the SQL contains any dangerous keywords,
-        /// otherwise null. Supports CTEs (WITH ... AS ...) freely.
-        /// </summary>
         public static string? CheckQuerySafety(string sql)
         {
-            if (string.IsNullOrWhiteSpace(sql))
-                return "Query cannot be empty.";
-
-            // Normalise: collapse whitespace, strip single-line comments,
-            // strip block comments, then upper-case for keyword matching.
-            var normalised = System.Text.RegularExpressions.Regex.Replace(sql, @"--[^\r\n]*", " ");
-            normalised = System.Text.RegularExpressions.Regex.Replace(normalised, @"/\*.*?\*/", " ",
+            if (string.IsNullOrWhiteSpace(sql)) return "Query cannot be empty.";
+            var n = System.Text.RegularExpressions.Regex.Replace(sql, @"--[^\r\n]*", " ");
+            n = System.Text.RegularExpressions.Regex.Replace(n, @"/\*.*?\*/", " ",
                 System.Text.RegularExpressions.RegexOptions.Singleline);
-            normalised = System.Text.RegularExpressions.Regex.Replace(normalised, @"\s+", " ").Trim().ToUpper();
+            n = System.Text.RegularExpressions.Regex.Replace(n, @"\s+", " ").Trim().ToUpper();
 
-            // Forbidden statement-level keywords.
-            // \b word boundary ensures e.g. "SELECTION" doesn't match "SELECT"... but
-            // we actually DO want SELECT, so forbidden list is everything else.
-            var forbidden = new[]
-            {
-                @"\bINSERT\b", @"\bUPDATE\b", @"\bDELETE\b", @"\bDROP\b",
-                @"\bTRUNCATE\b", @"\bALTER\b", @"\bCREATE\b", @"\bEXEC\b",
-                @"\bEXECUTE\b", @"\bSP_\w+", @"\bXP_\w+",
-                @"\bGRANT\b", @"\bREVOKE\b", @"\bDENY\b",
-                @"\bMERGE\b", @"\bBULK\b", @"\bOPENROWSET\b", @"\bOPENDATASOURCE\b",
+            var forbidden = new[] {
+                @"\bINSERT\b",@"\bUPDATE\b",@"\bDELETE\b",@"\bDROP\b",@"\bTRUNCATE\b",
+                @"\bALTER\b",@"\bCREATE\b",@"\bEXEC\b",@"\bEXECUTE\b",@"\bSP_\w+",
+                @"\bXP_\w+",@"\bGRANT\b",@"\bREVOKE\b",@"\bDENY\b",@"\bMERGE\b",
+                @"\bBULK\b",@"\bOPENROWSET\b",@"\bOPENDATASOURCE\b",
             };
-
-            foreach (var pattern in forbidden)
+            foreach (var p in forbidden)
             {
-                if (System.Text.RegularExpressions.Regex.IsMatch(normalised, pattern))
+                if (System.Text.RegularExpressions.Regex.IsMatch(n, p))
                 {
-                    // Extract the matched keyword for a helpful message.
-                    var match = System.Text.RegularExpressions.Regex.Match(normalised, pattern);
-                    return $"Forbidden keyword detected: '{match.Value}'. Only SELECT queries (including CTEs) are allowed.";
+                    var m = System.Text.RegularExpressions.Regex.Match(n, p);
+                    return $"Forbidden keyword: '{m.Value}'. Only SELECT/WITH (CTE) allowed.";
                 }
             }
-
-            // Must start with SELECT or WITH (CTE).
-            if (!System.Text.RegularExpressions.Regex.IsMatch(normalised, @"^(SELECT|WITH)\b"))
-                return "Query must start with SELECT or WITH (for CTEs).";
-
+            if (!System.Text.RegularExpressions.Regex.IsMatch(n, @"^(SELECT|WITH)\b"))
+                return "Query must start with SELECT or WITH.";
             return null;
         }
     }

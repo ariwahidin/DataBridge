@@ -20,6 +20,7 @@ namespace DataBridge.Models.ViewModels.MirrorJobs
         public bool HasSchedule { get; set; }
         public bool ScheduleEnabled { get; set; }
         public string? CronExpression { get; set; }
+        public string? CronLabel { get; set; }          // ← NEW
         public DateTime? LastRunAt { get; set; }
         public DateTime CreatedAt { get; set; }
     }
@@ -49,7 +50,6 @@ namespace DataBridge.Models.ViewModels.MirrorJobs
 
         public bool IsActive { get; set; } = true;
 
-        // Available sources for dropdown
         public List<SourceOption> AvailableSources { get; set; } = [];
     }
 

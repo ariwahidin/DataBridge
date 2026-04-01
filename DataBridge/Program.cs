@@ -64,19 +64,25 @@
 //app.Run();
 
 using DataBridge.Data;
+using DataBridge.Jobs;
 using DataBridge.Middleware;
 using DataBridge.Repositories.EF;
 using DataBridge.Repositories.Interfaces;
 using DataBridge.Services;
 using Microsoft.EntityFrameworkCore;
+using Quartz;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
 
-// EF Core
+// EF Core — register both regular + factory (factory needed for singleton services)
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+//builder.Services.AddDbContextFactory<AppDbContext>(options =>
+//    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")),
+//    ServiceLifetime.Scoped);
 
 // Session
 builder.Services.AddSession(options =>
@@ -104,6 +110,25 @@ builder.Services.AddScoped<JobHistoryService>();
 builder.Services.AddScoped<EmailConfigService>();
 builder.Services.AddScoped<DashboardService>();
 
+// Execution engine — scoped (needs DbContextFactory)
+builder.Services.AddScoped<MirrorExecutionService>();
+
+// Quartz
+builder.Services.AddQuartz(q =>
+{
+    q.UseMicrosoftDependencyInjectionJobFactory();
+});
+builder.Services.AddQuartzHostedService(opt =>
+{
+    opt.WaitForJobsToComplete = true;
+});
+
+// Quartz manager — singleton so it can be injected anywhere
+builder.Services.AddSingleton<QuartzSchedulerManager>();
+
+// Startup hosted service — loads schedules from DB into Quartz
+builder.Services.AddHostedService<SchedulerHostedService>();
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
@@ -119,19 +144,13 @@ app.UseSession();
 app.UseMiddleware<AuthMiddleware>();
 app.UseAuthorization();
 
-//app.MapControllerRoute(
-//    name: "default",
-//    pattern: "{controller=Auth}/{action=Login}/{id?}");
-
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Auth}/{action=Index}/{id?}");
 
-// Fallback: /Auth ? /Auth/Login (karena Auth tidak punya Index)
 app.MapControllerRoute(
     name: "auth_login",
     pattern: "Auth",
     defaults: new { controller = "Auth", action = "Login" });
-
 
 app.Run();
