@@ -1,0 +1,100 @@
+﻿@model DataBridge.Models.ViewModels.Sources.SourceFormViewModel
+@{
+    ViewData["Title"] = "Edit Source";
+}
+
+<div class="page-header">
+    <div>
+        <div class="page-title">Edit Source</div>
+        <div class="page-subtitle">Update connection details for @Model.Name</div>
+    </div>
+    <div class="page-actions">
+        <a href="/Sources" class="btn btn-secondary">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+            Back
+        </a>
+    </div>
+</div>
+
+<div style="max-width:600px;">
+    <div class="card">
+        <div class="card-header"><span class="card-title">Connection Details</span></div>
+        <div class="card-body">
+            @if (!ViewData.ModelState.IsValid && ViewData.ModelState.Values.Any(v => v.Errors.Count > 0))
+            {
+                <div class="alert alert-danger">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    <div>@foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors)) {
+                    <div>@e.ErrorMessage</div>
+                }
+</div>
+            </div>
+                        }
+
+            <form method="post" action="/Sources/Edit">
+                @Html.AntiForgeryToken()
+                <input asp-for="Id" type="hidden" />
+
+                <div class="form-group">
+                    <label class="form-label">Source Name <span style="color:var(--danger)">*</span></label>
+                    <input asp-for="Name" class="form-control" />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Connection String <span style="color:var(--danger)">*</span></label>
+                    <textarea asp-for="ConnectionString" class="form-control" rows="3"></textarea>
+                    <div class="form-hint">SQL Server connection string. Use a read-only account.</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <input asp-for="Description" class="form-control" />
+                </div>
+
+                <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+                    <input asp-for="IsActive" type="checkbox" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;" />
+                    <label style="font-size:13px;color:var(--text-secondary);cursor:pointer;">Source is active</label>
+                </div>
+
+                <div class="section-divider"></div>
+                <div id="testResult" style="display:none;margin-bottom:14px;"></div>
+
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button type="submit" class="btn btn-primary">
+                        <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /></svg>
+                        Save Changes
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="testConn()" id="testBtn">
+                        <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+                        Test Connection
+                    </button>
+                    <a href="/Sources" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        async function testConn() {
+            const cs  = document.getElementById('ConnectionString').value;
+            const btn = document.getElementById('testBtn');
+            const res = document.getElementById('testResult');
+            if (!cs.trim()) { alert('Please enter a connection string first.'); return; }
+            btn.disabled = true; btn.textContent = 'Testing…'; res.style.display = 'none';
+            try {
+                const r = await fetch('/Sources/TestConnection', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ connectionString: cs })
+                });
+                const d = await r.json();
+                res.style.display = 'flex';
+                res.className = 'alert ' + (d.success ? 'alert-success' : 'alert-danger');
+                res.innerHTML = '<span>' + d.message + '</span>';
+            } catch { res.style.display='flex'; res.className='alert alert-danger'; res.innerHTML='<span>Request failed</span>'; }
+            btn.disabled = false;
+            btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Test Connection';
+        }
+    </script>
+}

@@ -1,0 +1,62 @@
+﻿@model DataBridge.Models.ViewModels.EmailConfig.EmailConfigListViewModel
+@{
+    ViewData["Title"] = "Notifications";
+}
+
+<div class="page-header">
+    <div><div class="page-title">Notifications</div><div class="page-subtitle">Email notification settings per mirror job</div></div>
+    <div class="page-actions">
+        <a href="/EmailConfig/Create" class="btn btn-primary">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            Add Config
+        </a>
+    </div>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>@TempData["Success"]</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@TempData["Error"]</div>
+}
+
+<div class="table-wrap">
+    <table class="data-table">
+        <thead><tr><th>Job</th><th>Recipients</th><th>On Fail</th><th>On Success</th><th>Created</th><th style="text-align:right;">Actions</th></tr></thead>
+        <tbody>
+            @if (!Model.Configs.Any())
+            {
+                <tr>
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
+                            <p>No notification configs yet.</p>
+                        </div>
+                    </td>
+                </tr>
+            }
+            @foreach (var c in Model.Configs)
+            {
+                <tr>
+                    <td style="font-weight:500;color:var(--text-primary);">@c.JobName</td>
+                    <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">@c.Recipients</td>
+                    <td><span class="badge @(c.NotifyOnFail ? "badge-danger" : "badge-muted")">@(c.NotifyOnFail ? "Yes" : "No")</span></td>
+                    <td><span class="badge @(c.NotifyOnSuccess ? "badge-success" : "badge-muted")">@(c.NotifyOnSuccess ? "Yes" : "No")</span></td>
+                    <td style="font-family:var(--mono);font-size:11.5px;color:var(--text-muted);">@c.CreatedAt.ToString("dd MMM yyyy")</td>
+                    <td style="text-align:right;">
+                        <div style="display:flex;gap:5px;justify-content:flex-end;">
+                            <a href="/EmailConfig/Edit/@c.Id" class="btn btn-secondary btn-sm">Edit</a>
+                            <form method="post" action="/EmailConfig/Delete/@c.Id" style="display:inline"
+                                  onsubmit="return confirm('Delete notification config for \'@c.JobName\'?')">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

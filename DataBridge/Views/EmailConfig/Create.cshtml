@@ -1,0 +1,101 @@
+﻿@model DataBridge.Models.ViewModels.EmailConfig.EmailConfigFormViewModel
+@{
+    ViewData["Title"] = "New Notification Config";
+}
+
+<div class="page-header">
+    <div><div class="page-title">New Notification Config</div><div class="page-subtitle">Set up email alerts for a mirror job</div></div>
+    <div class="page-actions"><a href="/EmailConfig" class="btn btn-secondary"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>Back</a></div>
+</div>
+
+<div style="max-width:620px;">
+    <div class="card">
+        <div class="card-header"><span class="card-title">Notification Settings</span></div>
+        <div class="card-body">
+            @if (!ViewData.ModelState.IsValid && ViewData.ModelState.Values.Any(v => v.Errors.Count > 0))
+            {
+                <div class="alert alert-danger">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    <div>@foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors)) {
+                    <div>@e.ErrorMessage</div>
+                }
+</div>
+            </div>
+                        }
+            <form method="post" action="/EmailConfig/Create">
+                @Html.AntiForgeryToken()
+
+                <div class="form-group">
+                    <label class="form-label">Mirror Job <span style="color:var(--danger)">*</span></label>
+                    <select asp-for="MirrorJobId" class="form-control">
+                        <option value="">— Select job —</option>
+                        @foreach (var j in Model.AvailableJobs)
+                        {
+                            <option value="@j.Id">@j.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Recipients <span style="color:var(--danger)">*</span></label>
+                    <input asp-for="Recipients" class="form-control" placeholder="ops@company.com, admin@company.com" />
+                    <div class="form-hint">Comma-separated email addresses</div>
+                </div>
+
+                <div style="display:flex;gap:20px;margin-bottom:14px;">
+                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                        <input asp-for="NotifyOnFail" type="checkbox" style="width:15px;height:15px;accent-color:var(--danger);" />
+                        <span style="color:var(--text-secondary);">Notify on fail</span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                        <input asp-for="NotifyOnSuccess" type="checkbox" style="width:15px;height:15px;accent-color:var(--success);" />
+                        <span style="color:var(--text-secondary);">Notify on success</span>
+                    </label>
+                </div>
+
+                <div class="section-divider"></div>
+                <div style="font-size:11.5px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;font-family:var(--mono);margin-bottom:12px;">SMTP Settings</div>
+
+                <div style="display:grid;grid-template-columns:1fr 120px;gap:12px;">
+                    <div class="form-group">
+                        <label class="form-label">SMTP Host <span style="color:var(--danger)">*</span></label>
+                        <input asp-for="SmtpHost" class="form-control" placeholder="smtp.gmail.com" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Port</label>
+                        <input asp-for="SmtpPort" type="number" class="form-control" />
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div class="form-group">
+                        <label class="form-label">SMTP Username</label>
+                        <input asp-for="SmtpUser" class="form-control" placeholder="user@gmail.com" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">SMTP Password</label>
+                        <input asp-for="SmtpPassword" type="password" class="form-control" />
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div class="form-group">
+                        <label class="form-label">Sender Email <span style="color:var(--danger)">*</span></label>
+                        <input asp-for="SenderEmail" class="form-control" placeholder="databridge@company.com" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Sender Name</label>
+                        <input asp-for="SenderName" class="form-control" />
+                    </div>
+                </div>
+
+                <div class="section-divider"></div>
+                <div style="display:flex;gap:8px;">
+                    <button type="submit" class="btn btn-primary">
+                        <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /></svg>
+                        Save Config
+                    </button>
+                    <a href="/EmailConfig" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

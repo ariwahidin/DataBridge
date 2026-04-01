@@ -1,0 +1,100 @@
+﻿@model DataBridge.Models.ViewModels.MirrorJobs.MirrorJobFormViewModel
+@{
+    ViewData["Title"] = "New Mirror Job";
+}
+
+<div class="page-header">
+    <div><div class="page-title">New Mirror Job</div><div class="page-subtitle">Define a new data sync job</div></div>
+    <div class="page-actions"><a href="/MirrorJobs" class="btn btn-secondary"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>Back</a></div>
+</div>
+
+<div style="max-width:680px;">
+    <div class="card">
+        <div class="card-header"><span class="card-title">Job Configuration</span></div>
+        <div class="card-body">
+            @if (!ViewData.ModelState.IsValid && ViewData.ModelState.Values.Any(v => v.Errors.Count > 0))
+            {
+                <div class="alert alert-danger">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    <div>@foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors)) {
+                    <div>@e.ErrorMessage</div>
+                }
+</div>
+            </div>
+                        }
+
+            <form method="post" action="/MirrorJobs/Create">
+                @Html.AntiForgeryToken()
+
+                <div class="form-group">
+                    <label class="form-label">Job Name <span style="color:var(--danger)">*</span></label>
+                    <input asp-for="Name" class="form-control" placeholder="e.g. Inbound Orders Sync" />
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div class="form-group">
+                        <label class="form-label">Source <span style="color:var(--danger)">*</span></label>
+                        <select asp-for="SourceId" class="form-control">
+                            <option value="">— Select source —</option>
+                            @foreach (var s in Model.AvailableSources)
+                            {
+                                <option value="@s.Id">@s.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Destination Table <span style="color:var(--danger)">*</span></label>
+                        <input asp-for="DestinationTable" class="form-control" placeholder="e.g. dbo.InboundOrders" />
+                        <div class="form-hint">Table in Mirror DB</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Source Query <span style="color:var(--danger)">*</span></label>
+                    <textarea asp-for="SourceQuery" class="form-control" rows="5"
+                              placeholder="SELECT Id, OrderNo, Status, UpdatedAt FROM dbo.Orders WHERE IsActive = 1"></textarea>
+                    <div class="form-hint">SQL query to run on the source database. Use read-only columns.</div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div class="form-group">
+                        <label class="form-label">Sync Mode <span style="color:var(--danger)">*</span></label>
+                        <select asp-for="SyncMode" class="form-control" id="syncMode" onchange="toggleWatermark()">
+                            <option value="2">Full Replace (truncate + insert)</option>
+                            <option value="1">Incremental (watermark column)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="watermarkGroup" style="display:none;">
+                        <label class="form-label">Watermark Column</label>
+                        <input asp-for="WatermarkColumn" class="form-control" placeholder="e.g. UpdatedAt" />
+                        <div class="form-hint">Column used to detect new/changed rows</div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+                    <input asp-for="IsActive" type="checkbox" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;" />
+                    <label style="font-size:13px;color:var(--text-secondary);">Job is active</label>
+                </div>
+
+                <div class="section-divider"></div>
+                <div style="display:flex;gap:8px;">
+                    <button type="submit" class="btn btn-primary">
+                        <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /></svg>
+                        Create Job
+                    </button>
+                    <a href="/MirrorJobs" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function toggleWatermark() {
+            const v = document.getElementById('syncMode').value;
+            document.getElementById('watermarkGroup').style.display = v === '1' ? 'block' : 'none';
+        }
+        toggleWatermark();
+    </script>
+}
