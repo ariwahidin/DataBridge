@@ -16,12 +16,14 @@
             {
                 <div class="alert alert-danger">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                    <div>@foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors)) {
-                    <div>@e.ErrorMessage</div>
-                }
-</div>
-            </div>
+                    <div>
+                        @foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                        {
+                            <div>@e.ErrorMessage</div>
                         }
+                    </div>
+                </div>
+            }
 
             <form method="post" action="/MirrorJobs/Create">
                 @Html.AntiForgeryToken()
@@ -34,7 +36,7 @@
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                     <div class="form-group">
                         <label class="form-label">Source <span style="color:var(--danger)">*</span></label>
-                        <select asp-for="SourceId" class="form-control">
+                        <select asp-for="SourceId" class="form-control" id="sourceId">
                             <option value="">— Select source —</option>
                             @foreach (var s in Model.AvailableSources)
                             {
@@ -50,10 +52,19 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Source Query <span style="color:var(--danger)">*</span></label>
-                    <textarea asp-for="SourceQuery" class="form-control" rows="5"
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                        <label class="form-label" style="margin-bottom:0;">Source Query <span style="color:var(--danger)">*</span></label>
+                        <!-- NEW: Test Query button -->
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="testQuery()" id="btnTestQuery">
+                            <svg viewBox="0 0 24 24" style="width:13px;height:13px;"><polyline points="22 11.08 22 12 12 22 2 12 2 2 12 12 22 2" /></svg>
+                            Test Query
+                        </button>
+                    </div>
+                    <textarea asp-for="SourceQuery" class="form-control" rows="5" id="sourceQuery"
                               placeholder="SELECT Id, OrderNo, Status, UpdatedAt FROM dbo.Orders WHERE IsActive = 1"></textarea>
-                    <div class="form-hint">SQL query to run on the source database. Use read-only columns.</div>
+                    <div class="form-hint">SELECT / CTE only. UPDATE, DELETE, DROP etc. are blocked.</div>
+                    <!-- Result banner for test query -->
+                    <div id="queryTestResult" style="display:none;margin-top:8px;padding:8px 12px;border-radius:6px;font-size:12px;"></div>
                 </div>
 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
@@ -89,6 +100,7 @@
     </div>
 </div>
 
+@Html.AntiForgeryToken()
 @section Scripts {
     <script>
         function toggleWatermark() {
@@ -96,5 +108,53 @@
             document.getElementById('watermarkGroup').style.display = v === '1' ? 'block' : 'none';
         }
         toggleWatermark();
+
+        // ── Test Query ─────────────────────────────────────────────────────────
+        async function testQuery() {
+            const sourceId = parseInt(document.getElementById('sourceId').value);
+            const query = document.getElementById('sourceQuery').value.trim();
+            const resultBox = document.getElementById('queryTestResult');
+            const btn = document.getElementById('btnTestQuery');
+
+            if (!sourceId) { showQueryResult(false, 'Please select a Source first.'); return; }
+            if (!query)    { showQueryResult(false, 'Query is empty.'); return; }
+
+            btn.disabled = true;
+            btn.textContent = 'Testing…';
+            resultBox.style.display = 'none';
+
+            const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+
+            try {
+                const res = await fetch('/MirrorJobs/TestQuery', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': token
+                    },
+                    body: JSON.stringify({ sourceId, query })
+                });
+                const d = await res.json();
+                if (d.success) {
+                    showQueryResult(true, `✓ Query is valid. Result set has ${d.columnCount} column(s).`);
+                } else {
+                    showQueryResult(false, `✗ ${d.error}`);
+                }
+            } catch(e) {
+                showQueryResult(false, '✗ Request failed. Check console.');
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:13px;height:13px;"><polyline points="22 11.08 22 12 12 22 2 12 2 2 12 2 2 12 12 22 2"/></svg> Test Query';
+        }
+
+        function showQueryResult(success, msg) {
+            const box = document.getElementById('queryTestResult');
+            box.textContent = msg;
+            box.style.display = 'block';
+            box.style.background = success ? 'rgba(22,163,74,.12)' : 'rgba(220,38,38,.12)';
+            box.style.color = success ? 'var(--success, #16a34a)' : 'var(--danger, #dc2626)';
+            box.style.border = `1px solid ${success ? 'rgba(22,163,74,.3)' : 'rgba(220,38,38,.3)'}`;
+        }
     </script>
 }

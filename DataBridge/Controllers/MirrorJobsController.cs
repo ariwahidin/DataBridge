@@ -1,4 +1,5 @@
 ﻿using DataBridge.Models.ViewModels.MirrorJobs;
+using DataBridge.Repositories.Interfaces;
 using DataBridge.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,7 +8,13 @@ namespace DataBridge.Controllers
     public class MirrorJobsController : Controller
     {
         private readonly MirrorJobService _svc;
-        public MirrorJobsController(MirrorJobService svc) => _svc = svc;
+        private readonly ISourceRepository _sourceRepo;
+
+        public MirrorJobsController(MirrorJobService svc, ISourceRepository sourceRepo)
+        {
+            _svc = svc;
+            _sourceRepo = sourceRepo;
+        }
 
         private void SetBreadcrumb(params (string Label, string Url)[] extra)
         {
@@ -81,11 +88,51 @@ namespace DataBridge.Controllers
             return Json(new { success = ok, error = err });
         }
 
+        // ── NEW: Manual trigger ─────────────────────────────────────────────────
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> TriggerRun(int id)
+        {
+            var (ok, err) = await _svc.TriggerRunAsync(id);
+            return Json(new { success = ok, error = err });
+        }
+
+        // ── NEW: Test source query ──────────────────────────────────────────────
+        /// <summary>
+        /// Validates + test-executes a SQL query against a given source.
+        /// Body: { sourceId: int, query: string }
+        /// </summary>
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> TestQuery([FromBody] TestQueryRequest req)
+        {
+            if (req.SourceId <= 0 || string.IsNullOrWhiteSpace(req.Query))
+                return Json(new { success = false, error = "sourceId and query are required." });
+
+            // Static safety check first (no DB round-trip needed).
+            var safetyError = MirrorJobService.CheckQuerySafety(req.Query);
+            if (safetyError != null)
+                return Json(new { success = false, error = safetyError });
+
+            // Load connection string.
+            var source = await _sourceRepo.GetByIdAsync(req.SourceId);
+            if (source == null)
+                return Json(new { success = false, error = "Source not found." });
+
+            var (ok, err, colCount) = await _svc.ValidateSourceQueryAsync(source.ConnectionString, req.Query);
+            return Json(new { success = ok, error = err, columnCount = colCount });
+        }
+
+        // ── Helpers ─────────────────────────────────────────────────────────────
         private async Task<MirrorJobFormViewModel> RepopulateAsync(MirrorJobFormViewModel vm)
         {
             var fresh = await _svc.GetEmptyFormAsync();
             vm.AvailableSources = fresh.AvailableSources;
             return vm;
+        }
+
+        public class TestQueryRequest
+        {
+            public int SourceId { get; set; }
+            public string Query { get; set; } = string.Empty;
         }
     }
 }

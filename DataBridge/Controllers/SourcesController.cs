@@ -82,7 +82,8 @@ namespace DataBridge.Controllers
             return Json(new { success = ok, error = err });
         }
 
-        [HttpPost, ValidateAntiForgeryToken]
+        [HttpPost]
+        [IgnoreAntiforgeryToken]
         public IActionResult TestConnection([FromBody] TestConnectionRequest req)
         {
             var (ok, msg) = _svc.TestConnection(req.ConnectionString);
