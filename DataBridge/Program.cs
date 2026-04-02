@@ -129,6 +129,10 @@ builder.Services.AddSingleton<QuartzSchedulerManager>();
 // Startup hosted service — loads schedules from DB into Quartz
 builder.Services.AddHostedService<SchedulerHostedService>();
 
+// Mirror Table Builder & Data Explorer
+builder.Services.AddScoped<MirrorTableBuilderService>();
+builder.Services.AddScoped<MirrorDataExplorerService>();
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())

@@ -13,6 +13,7 @@ namespace DataBridge.Data
         public DbSet<JobSchedule> JobSchedules { get; set; }
         public DbSet<JobHistory> JobHistories { get; set; }
         public DbSet<EmailConfig> EmailConfigs { get; set; }
+        public DbSet<MirrorTableRegistry> MirrorTableRegistries { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

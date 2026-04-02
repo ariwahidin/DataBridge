@@ -1,0 +1,355 @@
+﻿@model DataBridge.Models.ViewModels.MirrorTableBuilder.CreateTableViewModel
+@{
+    ViewData["Title"] = "Create Table";
+    var types = DataBridge.Models.ViewModels.MirrorTableBuilder.CreateTableViewModel.AvailableTypes;
+    var lengthTypes = DataBridge.Models.ViewModels.MirrorTableBuilder.CreateTableViewModel.LengthTypes;
+    var precisionTypes = DataBridge.Models.ViewModels.MirrorTableBuilder.CreateTableViewModel.PrecisionTypes;
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Create Table</h1>
+        <p class="page-subtitle">Define a new table schema in the Mirror database</p>
+    </div>
+    <a href="/MirrorTableBuilder" class="btn btn-ghost">← Back to Tables</a>
+</div>
+
+<form asp-action="Create" method="post" id="createTableForm">
+    @Html.AntiForgeryToken()
+
+    <div class="row g-4">
+        <!-- Left: Table Settings -->
+        <div class="col-lg-3">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">Table Settings</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Schema</label>
+                        <input asp-for="Schema" class="form-control form-control-sm" placeholder="dbo" />
+                        <span asp-validation-for="Schema" class="text-danger text-xs"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Table Name <span class="text-danger">*</span></label>
+                        <input asp-for="TableName" class="form-control form-control-sm"
+                               placeholder="e.g. CustomerOrders" id="tableNameInput" />
+                        <span asp-validation-for="TableName" class="text-danger text-xs"></span>
+                    </div>
+
+                    <!-- Preview DDL -->
+                    <div class="mt-4">
+                        <label class="form-label text-muted text-xs text-uppercase">DDL Preview</label>
+                        <pre id="ddlPreview" class="ddl-preview"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Column Builder -->
+        <div class="col-lg-9">
+            <div class="card">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h6 class="card-title mb-0">Column Definitions</h6>
+                    <button type="button" class="btn btn-sm btn-primary" id="addColumnBtn">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                        Add Column
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0" id="columnsTable">
+                            <thead>
+                                <tr>
+                                    <th style="width:32px"></th>
+                                    <th>Column Name</th>
+                                    <th style="width:160px">Data Type</th>
+                                    <th style="width:90px">Length / Precision</th>
+                                    <th style="width:70px">Scale</th>
+                                    <th style="width:60px" class="text-center">Nullable</th>
+                                    <th style="width:60px" class="text-center">PK</th>
+                                    <th style="width:60px" class="text-center">Identity</th>
+                                    <th style="width:110px">Default</th>
+                                    <th style="width:40px"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="columnsBody">
+                                @for (int i = 0; i < Model.Columns.Count; i++)
+                                {
+                                    <tr class="col-row" data-index="@i">
+                                        <td class="drag-handle text-muted">⣿</td>
+                                        <td>
+                                            <input type="text" name="Columns[@i].ColumnName"
+                                                   value="@Model.Columns[i].ColumnName"
+                                                   class="form-control form-control-xs col-name"
+                                                   placeholder="column_name" />
+                                        </td>
+                                        <td>
+                                            <select name="Columns[@i].DataType"
+                                                    class="form-select form-select-xs col-type"
+                                                    onchange="onTypeChange(this)">
+                                                @foreach (var t in types)
+                                                {
+                                                    <option value="@t" selected="@(Model.Columns[i].DataType == t ? "selected" : null)">@t</option>
+                                                }
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <input type="number" name="Columns[@i].Length"
+                                                   value="@Model.Columns[i].Length"
+                                                   class="form-control form-control-xs col-length"
+                                                   placeholder="MAX" min="1"
+                                                   style="@(lengthTypes.Contains(Model.Columns[i].DataType) ? "" : "display:none")" />
+                                            <input type="number" name="Columns[@i].Precision"
+                                                   value="@Model.Columns[i].Precision"
+                                                   class="form-control form-control-xs col-precision"
+                                                   placeholder="18" min="1" max="38"
+                                                   style="@(precisionTypes.Contains(Model.Columns[i].DataType) ? "" : "display:none")" />
+                                        </td>
+                                        <td>
+                                            <input type="number" name="Columns[@i].Scale"
+                                                   value="@Model.Columns[i].Scale"
+                                                   class="form-control form-control-xs col-scale"
+                                                   placeholder="2" min="0" max="38"
+                                                   style="@(precisionTypes.Contains(Model.Columns[i].DataType) ? "" : "display:none")" />
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" name="Columns[@i].IsNullable"
+                                                   class="form-check-input col-nullable"
+                                                   @(Model.Columns[i].IsNullable ? "checked" : "") value="true" />
+                                            <input type="hidden" name="Columns[@i].IsNullable" value="false" />
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" name="Columns[@i].IsPrimaryKey"
+                                                   class="form-check-input col-pk"
+                                                   @(Model.Columns[i].IsPrimaryKey ? "checked" : "") value="true" />
+                                            <input type="hidden" name="Columns[@i].IsPrimaryKey" value="false" />
+                                        </td>
+                                        <td class="text-center">
+                                            <input type="checkbox" name="Columns[@i].IsIdentity"
+                                                   class="form-check-input col-identity"
+                                                   @(Model.Columns[i].IsIdentity ? "checked" : "") value="true" />
+                                            <input type="hidden" name="Columns[@i].IsIdentity" value="false" />
+                                        </td>
+                                        <td>
+                                            <input type="text" name="Columns[@i].DefaultValue"
+                                                   value="@Model.Columns[i].DefaultValue"
+                                                   class="form-control form-control-xs"
+                                                   placeholder="e.g. GETDATE()" />
+                                        </td>
+                                        <td>
+                                            <button type="button" class="btn btn-xs btn-ghost text-danger remove-col-btn">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-between align-items-center">
+                    <span class="text-muted text-sm" id="colCount">@Model.Columns.Count column(s)</span>
+                    <div class="d-flex gap-2">
+                        <a href="/MirrorTableBuilder" class="btn btn-ghost">Cancel</a>
+                        <button type="submit" class="btn btn-primary">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12" /></svg>
+                            Create Table
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+@section Styles {
+    <style>
+        .form-control-xs {
+            height: 28px;
+            font-size: 12px;
+            padding: 2px 8px;
+        }
+
+        .form-select-xs {
+            height: 28px;
+            font-size: 12px;
+            padding: 2px 6px;
+        }
+
+        .btn-xs {
+            padding: 2px 6px;
+            font-size: 11px;
+        }
+
+        .drag-handle {
+            cursor: grab;
+            user-select: none;
+            font-size: 16px;
+        }
+
+        .ddl-preview {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 11px;
+            font-family: var(--mono, monospace);
+            color: var(--text-muted);
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 340px;
+            overflow-y: auto;
+        }
+
+        #columnsTable th {
+            font-size: 11px;
+            background: var(--bg);
+        }
+
+        #columnsTable td {
+            vertical-align: middle;
+            padding: 4px 8px;
+        }
+
+        .col-row:hover {
+            background: var(--bg);
+        }
+    </style>
+}
+
+@section Scripts {
+    <script>
+        const ALL_TYPES     = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(types));
+        const LENGTH_TYPES  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(lengthTypes));
+        const PRECISION_TYPES = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(precisionTypes));
+        const INT_TYPES = ['INT','BIGINT','SMALLINT','TINYINT'];
+
+        let colIndex = @Model.Columns.Count;
+
+        // ── Add column ───────────────────────────────────────────────────────────────
+        document.getElementById('addColumnBtn').addEventListener('click', () => {
+            const tbody = document.getElementById('columnsBody');
+            const i = colIndex++;
+            const row = document.createElement('tr');
+            row.className = 'col-row';
+            row.dataset.index = i;
+            row.innerHTML = `
+                <td class="drag-handle text-muted">⣿</td>
+                <td><input type="text" name="Columns[${i}].ColumnName" class="form-control form-control-xs col-name" placeholder="column_name" /></td>
+                <td>
+                    <select name="Columns[${i}].DataType" class="form-select form-select-xs col-type" onchange="onTypeChange(this)">
+                        ${ALL_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}
+                    </select>
+                </td>
+                <td>
+                    <input type="number" name="Columns[${i}].Length"   class="form-control form-control-xs col-length"    placeholder="MAX" min="1" style="display:none" />
+                    <input type="number" name="Columns[${i}].Precision" class="form-control form-control-xs col-precision" placeholder="18" min="1" max="38" style="display:none" />
+                </td>
+                <td><input type="number" name="Columns[${i}].Scale" class="form-control form-control-xs col-scale" placeholder="2" min="0" max="38" style="display:none" /></td>
+                <td class="text-center">
+                    <input type="checkbox" name="Columns[${i}].IsNullable"   class="form-check-input col-nullable"  value="true" checked />
+                    <input type="hidden"   name="Columns[${i}].IsNullable"   value="false" />
+                </td>
+                <td class="text-center">
+                    <input type="checkbox" name="Columns[${i}].IsPrimaryKey" class="form-check-input col-pk"       value="true" />
+                    <input type="hidden"   name="Columns[${i}].IsPrimaryKey" value="false" />
+                </td>
+                <td class="text-center">
+                    <input type="checkbox" name="Columns[${i}].IsIdentity"   class="form-check-input col-identity" value="true" />
+                    <input type="hidden"   name="Columns[${i}].IsIdentity"   value="false" />
+                </td>
+                <td><input type="text" name="Columns[${i}].DefaultValue" class="form-control form-control-xs" placeholder="e.g. GETDATE()" /></td>
+                <td><button type="button" class="btn btn-xs btn-ghost text-danger remove-col-btn">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button></td>`;
+            tbody.appendChild(row);
+            updateColCount();
+            updatePreview();
+        });
+
+        // ── Remove column ─────────────────────────────────────────────────────────────
+        document.getElementById('columnsBody').addEventListener('click', e => {
+            const btn = e.target.closest('.remove-col-btn');
+            if (btn) {
+                btn.closest('tr').remove();
+                reindexColumns();
+                updateColCount();
+                updatePreview();
+            }
+        });
+
+        // ── Type change handler ───────────────────────────────────────────────────────
+        function onTypeChange(select) {
+            const row = select.closest('tr');
+            const type = select.value;
+            row.querySelector('.col-length').style.display    = LENGTH_TYPES.includes(type)    ? '' : 'none';
+            row.querySelector('.col-precision').style.display = PRECISION_TYPES.includes(type) ? '' : 'none';
+            row.querySelector('.col-scale').style.display     = PRECISION_TYPES.includes(type) ? '' : 'none';
+
+            // Identity only makes sense for integer types
+            const identityBox = row.querySelector('.col-identity');
+            if (!INT_TYPES.includes(type)) { identityBox.checked = false; identityBox.disabled = true; }
+            else identityBox.disabled = false;
+
+            updatePreview();
+        }
+
+        // ── Reindex after remove ──────────────────────────────────────────────────────
+        function reindexColumns() {
+            document.querySelectorAll('#columnsBody tr').forEach((row, i) => {
+                row.querySelectorAll('[name]').forEach(el => {
+                    el.name = el.name.replace(/Columns\[\d+\]/, `Columns[${i}]`);
+                });
+            });
+            colIndex = document.querySelectorAll('#columnsBody tr').length;
+        }
+
+        function updateColCount() {
+            const n = document.querySelectorAll('#columnsBody tr').length;
+            document.getElementById('colCount').textContent = `${n} column(s)`;
+        }
+
+        // ── DDL Preview ───────────────────────────────────────────────────────────────
+        function updatePreview() {
+            const schema = document.querySelector('[name=Schema]').value || 'dbo';
+            const tableName = document.querySelector('[name=TableName]').value || 'TableName';
+
+            const rows = [...document.querySelectorAll('#columnsBody tr')];
+            if (!rows.length) { document.getElementById('ddlPreview').textContent = ''; return; }
+
+            const lines = rows.map(row => {
+                const name     = row.querySelector('.col-name').value || '?';
+                const typeEl   = row.querySelector('.col-type');
+                const type     = typeEl ? typeEl.value : 'NVARCHAR';
+                const length   = row.querySelector('.col-length')?.value;
+                const prec     = row.querySelector('.col-precision')?.value;
+                const scale    = row.querySelector('.col-scale')?.value;
+                const nullable = row.querySelector('.col-nullable')?.checked;
+                const pk       = row.querySelector('.col-pk')?.checked;
+                const identity = row.querySelector('.col-identity')?.checked;
+
+                let fullType = type;
+                if (LENGTH_TYPES.includes(type))    fullType = `${type}(${length || 'MAX'})`;
+                if (PRECISION_TYPES.includes(type)) fullType = `${type}(${prec||18},${scale||2})`;
+
+                let line = `    [${name}] ${fullType}`;
+                if (identity && INT_TYPES.includes(type)) line += ' IDENTITY(1,1)';
+                if (pk) line += ' PRIMARY KEY';
+                line += nullable ? ' NULL' : ' NOT NULL';
+                return line;
+            });
+
+            const ddl = `CREATE TABLE [${schema}].[${tableName}] (\n${lines.join(',\n')}\n);`;
+            document.getElementById('ddlPreview').textContent = ddl;
+        }
+
+        // ── Wire up live preview ──────────────────────────────────────────────────────
+        document.getElementById('createTableForm').addEventListener('input', updatePreview);
+        document.getElementById('createTableForm').addEventListener('change', updatePreview);
+
+        // Init type visibility for pre-rendered rows
+        document.querySelectorAll('.col-type').forEach(onTypeChange);
+        updatePreview();
+    </script>
+}
