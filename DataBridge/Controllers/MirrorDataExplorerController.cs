@@ -1,9 +1,12 @@
-﻿using DataBridge.Services;
+﻿using DataBridge.Filters;
+using DataBridge.Models.Enums;
+using DataBridge.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 
 namespace DataBridge.Controllers
 {
+    [RequireRole(UserRole.Admin)]
     public class MirrorDataExplorerController : Controller
     {
         private readonly MirrorDataExplorerService _svc;

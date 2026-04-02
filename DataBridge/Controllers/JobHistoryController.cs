@@ -1,8 +1,11 @@
-﻿using DataBridge.Services;
+﻿using DataBridge.Filters;
+using DataBridge.Models.Enums;
+using DataBridge.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DataBridge.Controllers
 {
+    [RequireRole(UserRole.Admin)]
     public class JobHistoryController : Controller
     {
         private readonly JobHistoryService _svc;

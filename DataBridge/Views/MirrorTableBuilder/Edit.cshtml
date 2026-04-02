@@ -1,0 +1,289 @@
+﻿@model DataBridge.Models.ViewModels.MirrorTableBuilder.EditSchemaViewModel
+@{
+    ViewData["Title"] = $"Edit Schema — {Model.FullTableName}";
+    var types = DataBridge.Models.ViewModels.MirrorTableBuilder.CreateTableViewModel.AvailableTypes;
+    var lengthTypes = DataBridge.Models.ViewModels.MirrorTableBuilder.CreateTableViewModel.LengthTypes;
+    var precisionTypes = DataBridge.Models.ViewModels.MirrorTableBuilder.CreateTableViewModel.PrecisionTypes;
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Edit Schema</h1>
+        <p class="page-subtitle"><code>@Model.FullTableName</code></p>
+    </div>
+    <a href="/MirrorTableBuilder" class="btn btn-ghost">← Back to Tables</a>
+</div>
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger mb-4">@TempData["Error"]</div>
+}
+
+<form asp-action="Edit" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="FullTableName" value="@Model.FullTableName" />
+    <input type="hidden" name="Schema" value="@Model.Schema" />
+    <input type="hidden" name="TableName" value="@Model.TableName" />
+
+    <div class="row g-4">
+
+        <!-- ── Existing Columns ── -->
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">Existing Columns</h6>
+                    <p class="text-muted text-sm mb-0">Centang "Drop" untuk menghapus kolom. Toggle "Nullable" untuk mengubah constraint.</p>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Column Name</th>
+                                <th>Type</th>
+                                <th class="text-center">PK</th>
+                                <th class="text-center">Identity</th>
+                                <th class="text-center">Nullable</th>
+                                <th class="text-center text-danger">Drop</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < Model.ExistingColumns.Count; i++)
+                            {
+                                var col = Model.ExistingColumns[i];
+                                <tr id="existing-row-@i" class="@(col.IsPrimaryKey || col.IsIdentity ? "table-secondary" : "")">
+                                    <input type="hidden" name="ExistingColumns[@i].ColumnName" value="@col.ColumnName" />
+                                    <input type="hidden" name="ExistingColumns[@i].FullType" value="@col.FullType" />
+                                    <input type="hidden" name="ExistingColumns[@i].DataType" value="@col.DataType" />
+                                    <input type="hidden" name="ExistingColumns[@i].IsPrimaryKey" value="@col.IsPrimaryKey.ToString().ToLower()" />
+                                    <input type="hidden" name="ExistingColumns[@i].IsIdentity" value="@col.IsIdentity.ToString().ToLower()" />
+                                    <input type="hidden" name="ExistingColumns[@i].IsNullable" value="@col.IsNullable.ToString().ToLower()" />
+
+                                    <td>
+                                        <code class="text-sm">@col.ColumnName</code>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-secondary text-xs">@col.FullType</span>
+                                    </td>
+                                    <td class="text-center">
+                                        @if (col.IsPrimaryKey)
+                                        {
+                                            <span class="badge badge-warning text-xs">PK</span>
+                                        }
+                                    </td>
+                                    <td class="text-center">
+                                        @if (col.IsIdentity)
+                                        {
+                                            <span class="badge badge-secondary text-xs">IDENTITY</span>
+                                        }
+                                    </td>
+                                    <td class="text-center">
+                                        @if (col.IsPrimaryKey || col.IsIdentity)
+                                        {
+                                            <input type="hidden" name="ExistingColumns[@i].NewIsNullable" value="false" />
+                                            <span class="text-muted text-xs">—</span>
+                                        }
+                                        else
+                                        {
+                                            <input type="checkbox"
+                                                   name="ExistingColumns[@i].NewIsNullable"
+                                                   value="true"
+                                                   class="form-check-input nullable-toggle"
+                                                   data-row="@i"
+                                                   @(col.IsNullable ? "checked" : "") />
+                                            <input type="hidden" name="ExistingColumns[@i].NewIsNullable" value="false" />
+                                        }
+                                    </td>
+                                    <td class="text-center">
+                                        @if (col.IsPrimaryKey || col.IsIdentity)
+                                        {
+                                            <input type="hidden" name="ExistingColumns[@i].MarkedForDrop" value="false" />
+                                            <span class="text-muted text-xs" title="Cannot drop PK or Identity column">—</span>
+                                        }
+                                        else
+                                        {
+                                            <input type="checkbox"
+                                                   name="ExistingColumns[@i].MarkedForDrop"
+                                                   value="true"
+                                                   class="form-check-input drop-toggle text-danger"
+                                                   data-row="@i"
+                                                   onchange="toggleDropRow(this, @i)" />
+                                            <input type="hidden" name="ExistingColumns[@i].MarkedForDrop" value="false" />
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Add New Columns ── -->
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h6 class="card-title mb-0">Add New Columns</h6>
+                    <button type="button" class="btn btn-sm btn-primary" id="addNewColBtn">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                        Add Column
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0" id="newColsTable">
+                        <thead>
+                            <tr>
+                                <th>Column Name</th>
+                                <th style="width:160px">Data Type</th>
+                                <th style="width:90px">Length / Precision</th>
+                                <th style="width:70px">Scale</th>
+                                <th style="width:60px" class="text-center">Nullable</th>
+                                <th style="width:110px">Default</th>
+                                <th style="width:40px"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="newColsBody">
+                            @* Diisi oleh JS *@
+                        </tbody>
+                    </table>
+                    <div id="newColsEmpty" class="text-center text-muted text-sm p-3">
+                        No new columns to add. Click "Add Column" to add one.
+                    </div>
+                </div>
+
+                <div class="card-footer d-flex justify-content-end gap-2">
+                    <a href="/MirrorTableBuilder" class="btn btn-ghost">Cancel</a>
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12" /></svg>
+                        Apply Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</form>
+
+@section Styles {
+    <style>
+        .form-control-xs {
+            height: 28px;
+            font-size: 12px;
+            padding: 2px 8px;
+        }
+
+        .form-select-xs {
+            height: 28px;
+            font-size: 12px;
+            padding: 2px 6px;
+        }
+
+        .btn-xs {
+            padding: 2px 6px;
+            font-size: 11px;
+        }
+
+        .row-marked-drop td {
+            opacity: 0.45;
+            text-decoration: line-through;
+        }
+
+        .row-marked-drop .drop-toggle {
+            opacity: 1 !important;
+            text-decoration: none !important;
+        }
+    </style>
+}
+
+@section Scripts {
+    <script>
+        const ALL_TYPES       = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(types));
+        const LENGTH_TYPES    = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(lengthTypes));
+        const PRECISION_TYPES = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(precisionTypes));
+
+        let newColIndex = 0;
+
+        // ── Toggle drop row styling ───────────────────────────────────────────
+        function toggleDropRow(checkbox, rowIndex) {
+            const row = document.getElementById('existing-row-' + rowIndex);
+            if (checkbox.checked) {
+                row.classList.add('row-marked-drop');
+            } else {
+                row.classList.remove('row-marked-drop');
+            }
+        }
+
+        // ── Add new column row ────────────────────────────────────────────────
+        document.getElementById('addNewColBtn').addEventListener('click', () => {
+            const tbody = document.getElementById('newColsBody');
+            const i = newColIndex++;
+            const row = document.createElement('tr');
+            row.id = 'new-col-row-' + i;
+            row.innerHTML = `
+                <td><input type="text" name="NewColumns[${i}].ColumnName"
+                           class="form-control form-control-xs new-col-name"
+                           placeholder="column_name" /></td>
+                <td>
+                    <select name="NewColumns[${i}].DataType"
+                            class="form-select form-select-xs new-col-type"
+                            onchange="onNewTypeChange(this)">
+                        ${ALL_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}
+                    </select>
+                </td>
+                <td>
+                    <input type="number" name="NewColumns[${i}].Length"
+                           class="form-control form-control-xs new-col-length"
+                           placeholder="MAX" min="1" style="display:none" />
+                    <input type="number" name="NewColumns[${i}].Precision"
+                           class="form-control form-control-xs new-col-precision"
+                           placeholder="18" min="1" max="38" style="display:none" />
+                </td>
+                <td>
+                    <input type="number" name="NewColumns[${i}].Scale"
+                           class="form-control form-control-xs new-col-scale"
+                           placeholder="2" min="0" max="38" style="display:none" />
+                </td>
+                <td class="text-center">
+                    <input type="checkbox" name="NewColumns[${i}].IsNullable"
+                           class="form-check-input" value="true" checked />
+                    <input type="hidden" name="NewColumns[${i}].IsNullable" value="false" />
+                </td>
+                <td>
+                    <input type="text" name="NewColumns[${i}].DefaultValue"
+                           class="form-control form-control-xs"
+                           placeholder="e.g. GETDATE()" />
+                </td>
+                <td>
+                    <button type="button" class="btn btn-xs btn-ghost text-danger"
+                            onclick="removeNewCol(${i})">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </td>`;
+            tbody.appendChild(row);
+            updateNewColsEmpty();
+        });
+
+        function removeNewCol(i) {
+            document.getElementById('new-col-row-' + i)?.remove();
+            updateNewColsEmpty();
+        }
+
+        function onNewTypeChange(select) {
+            const row = select.closest('tr');
+            const type = select.value;
+            row.querySelector('.new-col-length').style.display    = LENGTH_TYPES.includes(type)    ? '' : 'none';
+            row.querySelector('.new-col-precision').style.display = PRECISION_TYPES.includes(type) ? '' : 'none';
+            row.querySelector('.new-col-scale').style.display     = PRECISION_TYPES.includes(type) ? '' : 'none';
+        }
+
+        function updateNewColsEmpty() {
+            const hasRows = document.querySelectorAll('#newColsBody tr').length > 0;
+            document.getElementById('newColsEmpty').style.display = hasRows ? 'none' : '';
+            document.getElementById('newColsTable').style.display = hasRows ? ''     : 'none';
+        }
+
+        // Init
+        updateNewColsEmpty();
+    </script>
+}

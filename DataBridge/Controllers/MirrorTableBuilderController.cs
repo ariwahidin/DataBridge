@@ -1,9 +1,12 @@
-﻿using DataBridge.Models.ViewModels.MirrorTableBuilder;
+﻿using DataBridge.Filters;
+using DataBridge.Models.Enums;
+using DataBridge.Models.ViewModels.MirrorTableBuilder;
 using DataBridge.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DataBridge.Controllers
 {
+    [RequireRole(UserRole.Admin)]
     public class MirrorTableBuilderController : Controller
     {
         private readonly MirrorTableBuilderService _svc;
@@ -85,6 +88,60 @@ namespace DataBridge.Controllers
         {
             var cols = await _svc.GetColumnsAsync(tableName);
             return Json(cols);
+        }
+
+        // ── 6. Edit schema form ───────────────────────────────────────────────────
+        [HttpGet]
+        public async Task<IActionResult> Edit(string tableName)
+        {
+            ViewData["Title"] = $"Edit Schema — {tableName}";
+            SetBreadcrumb(("Table Builder", "/MirrorTableBuilder"), ("Edit", "#"));
+
+            var vm = await _svc.GetEditSchemaAsync(tableName);
+            if (vm == null)
+            {
+                TempData["Error"] = $"Table '{tableName}' not found or has no columns.";
+                return RedirectToAction(nameof(Index));
+            }
+            return View(vm);
+        }
+
+        // ── 7. Apply schema edits ─────────────────────────────────────────────────
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> Edit(EditSchemaViewModel vm)
+        {
+            ViewData["Title"] = $"Edit Schema — {vm.FullTableName}";
+            SetBreadcrumb(("Table Builder", "/MirrorTableBuilder"), ("Edit", "#"));
+
+            var (ok, err) = await _svc.ApplySchemaEditAsync(vm);
+            if (!ok)
+            {
+                TempData["Error"] = err;
+                // Reload existing columns dari DB supaya halaman tetap tampil benar
+                var fresh = await _svc.GetEditSchemaAsync(vm.FullTableName);
+                if (fresh != null) vm.ExistingColumns = fresh.ExistingColumns;
+                return View(vm);
+            }
+
+            TempData["Success"] = $"Schema for '{vm.FullTableName}' updated successfully.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        // ── 8. Rename table form (modal POST) ─────────────────────────────────────
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> Rename(string tableName, string newName)
+        {
+            if (string.IsNullOrWhiteSpace(newName))
+            {
+                TempData["Error"] = "New table name cannot be empty.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            var (ok, err) = await _svc.RenameTableAsync(tableName, newName);
+            if (ok) TempData["Success"] = $"Table renamed to '{newName}'.";
+            else TempData["Error"] = err;
+
+            return RedirectToAction(nameof(Index));
         }
     }
 }

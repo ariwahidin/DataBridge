@@ -1,0 +1,208 @@
+﻿@model DataBridge.Models.ViewModels.ReportBuilder.ReportRunViewModel
+@{
+    ViewData["Title"] = Model.Name;
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">@Model.Name</h1>
+        @if (!string.IsNullOrWhiteSpace(Model.Description))
+        {
+            <p class="page-subtitle">@Model.Description</p>
+        }
+    </div>
+    <a href="/ReportViewer" class="btn btn-ghost">← Back</a>
+</div>
+
+<!-- Parameter Panel -->
+@if (Model.Parameters.Any())
+{
+    <div class="card mb-4">
+        <div class="card-header"><h6 class="card-title mb-0">Parameters</h6></div>
+        <div class="card-body">
+            <div class="row g-3" id="paramPanel">
+                @foreach (var p in Model.Parameters)
+                {
+                    <div class="col-md-3">
+                        <label class="form-label">
+                            @p.Label
+                            @if (p.IsRequired)
+                            {
+                                <span class="text-danger">*</span>
+                            }
+                        </label>
+
+                        @if (p.ParamType == DataBridge.Models.Entities.ReportParamType.Dropdown)
+                        {
+                            <select class="form-select form-select-sm param-input" data-param="@p.ParamName">
+                                <option value="">— Select —</option>
+                                @foreach (var opt in p.DropdownOptions)
+                                {
+                                    <option value="@opt" selected="@(p.DefaultValue == opt ? "selected" : null)">@opt</option>
+                                }
+                            </select>
+                        }
+                        else if (p.ParamType == DataBridge.Models.Entities.ReportParamType.Date)
+                        {
+                            <input type="date" class="form-control form-control-sm param-input"
+                                   data-param="@p.ParamName" value="@p.DefaultValue" />
+                        }
+                        else if (p.ParamType == DataBridge.Models.Entities.ReportParamType.DateRange)
+                        {
+                            <div class="d-flex gap-1 align-items-center">
+                                <input type="date" class="form-control form-control-sm param-input-from"
+                                       data-param="@p.ParamName" />
+                                <span class="text-muted">–</span>
+                                <input type="date" class="form-control form-control-sm param-input-to"
+                                       data-param="@p.ParamName" />
+                            </div>
+                        }
+                        else if (p.ParamType == DataBridge.Models.Entities.ReportParamType.Number)
+                        {
+                            <input type="number" class="form-control form-control-sm param-input"
+                                   data-param="@p.ParamName" value="@p.DefaultValue" />
+                        }
+                        else
+                        {
+                            <input type="text" class="form-control form-control-sm param-input"
+                                   data-param="@p.ParamName" value="@p.DefaultValue" placeholder="@p.Label" />
+                        }
+                    </div>
+                }
+            </div>
+            <div class="mt-3">
+                <button class="btn btn-primary" id="runBtn">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                    Run Report
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Result Panel -->
+<div class="card" id="resultCard" style="@(Model.Parameters.Any() ? "display:none" : "")">
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <h6 class="card-title mb-0">
+            Result
+            <span id="resultMeta" class="text-muted text-sm fw-normal ms-2"></span>
+        </h6>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-ghost" id="downloadExcelBtn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                Excel
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div id="resultLoading" class="text-center p-4" style="display:none">
+            <div class="spinner-border spinner-border-sm text-muted"></div>
+            <span class="ms-2 text-muted">Running report...</span>
+        </div>
+        <div id="resultError" class="alert alert-danger m-3" style="display:none"></div>
+        <div style="overflow-x:auto;max-height:600px;overflow-y:auto">
+            <table class="table table-hover table-sm mb-0 data-table" id="resultTable" style="font-size:12px;display:none;min-width:600px">
+                <thead id="resultHead"></thead>
+                <tbody id="resultBody"></tbody>
+            </table>
+        </div>
+        <div id="resultEmpty" class="text-center text-muted p-5" style="display:none">No data found.</div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const REPORT_ID = @Model.Id;
+
+        function collectValues() {
+            const values = {};
+            document.querySelectorAll('.param-input').forEach(el => {
+                values[el.dataset.param] = el.value;
+            });
+            document.querySelectorAll('.param-input-from').forEach(el => {
+                const to = document.querySelector(`.param-input-to[data-param="${el.dataset.param}"]`)?.value || '';
+                values[el.dataset.param] = el.value + '|' + to;
+            });
+            return values;
+        }
+
+        async function runReport() {
+            const card = document.getElementById('resultCard');
+            card.style.display = '';
+            document.getElementById('resultLoading').style.display = '';
+            document.getElementById('resultError').style.display   = 'none';
+            document.getElementById('resultTable').style.display   = 'none';
+            document.getElementById('resultEmpty').style.display   = 'none';
+
+            const values = collectValues();
+
+            try {
+                const resp = await fetch('/ReportViewer/Execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reportId: REPORT_ID, values })
+                });
+                const data = await resp.json();
+                document.getElementById('resultLoading').style.display = 'none';
+
+                if (data.error) {
+                    document.getElementById('resultError').style.display = '';
+                    document.getElementById('resultError').textContent   = data.error;
+                    return;
+                }
+
+                if (!data.rows || data.rows.length === 0) {
+                    document.getElementById('resultEmpty').style.display = '';
+                    document.getElementById('resultMeta').textContent    = '0 rows';
+                    return;
+                }
+
+                document.getElementById('resultMeta').textContent =
+                    `${data.totalRows.toLocaleString()} row(s)${data.truncated ? ' — truncated, download Excel for full data' : ''}`;
+
+                const thead = document.getElementById('resultHead');
+                const tbody = document.getElementById('resultBody');
+
+                thead.innerHTML = '<tr>' + data.columns.map(c =>
+                    `<th style="white-space:nowrap;font-size:11px;background:var(--bg)">${c}</th>`
+                ).join('') + '</tr>';
+
+                tbody.innerHTML = data.rows.map(row =>
+                    '<tr>' + data.columns.map(c => {
+                        const v = row[c];
+                        if (v === null || v === undefined)
+                            return '<td><span class="text-muted fst-italic" style="font-size:11px">NULL</span></td>';
+                        const s = String(v);
+                        const display = s.length > 100 ? s.substring(0, 100) + '…' : s;
+                        return `<td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.replace(/"/g,'&quot;')}">${display}</td>`;
+                    }).join('') + '</tr>'
+                ).join('');
+
+                document.getElementById('resultTable').style.display = '';
+            } catch (err) {
+                document.getElementById('resultLoading').style.display = 'none';
+                document.getElementById('resultError').style.display   = '';
+                document.getElementById('resultError').textContent     = err.message;
+            }
+        }
+
+        // Run button
+        const runBtn = document.getElementById('runBtn');
+        if (runBtn) runBtn.addEventListener('click', runReport);
+
+        // Excel download
+        document.getElementById('downloadExcelBtn').addEventListener('click', () => {
+            const values = collectValues();
+            const qs = Object.entries(values)
+                .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v ?? '')}`)
+                .join('&');
+            window.location.href = `/ReportViewer/DownloadExcel?id=${REPORT_ID}&${qs}`;
+        });
+
+        // Auto-run if no params
+        @if (!Model.Parameters.Any())
+        {
+                <text>runReport();</text>
+        }
+    </script>
+}

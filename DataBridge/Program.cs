@@ -132,6 +132,7 @@ builder.Services.AddHostedService<SchedulerHostedService>();
 // Mirror Table Builder & Data Explorer
 builder.Services.AddScoped<MirrorTableBuilderService>();
 builder.Services.AddScoped<MirrorDataExplorerService>();
+builder.Services.AddScoped<ReportBuilderService>();
 
 var app = builder.Build();
 

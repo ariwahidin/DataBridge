@@ -78,7 +78,7 @@
 
 @section Scripts {
     <script>
-        const TABLE_NAME = '@Html.Raw(System.Text.Json.JsonSerializer.Serialize(tableName))';
+        const TABLE_NAME = '@Html.Raw(tableName)';
         const COLUMNS    = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(columns.Select(c => new { c.ColumnName, c.DataType })));
 
         let state = {

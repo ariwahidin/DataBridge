@@ -1,10 +1,13 @@
-﻿using DataBridge.Models.ViewModels.MirrorJobs;
+﻿using DataBridge.Filters;
+using DataBridge.Models.Enums;
+using DataBridge.Models.ViewModels.MirrorJobs;
 using DataBridge.Repositories.Interfaces;
 using DataBridge.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DataBridge.Controllers
 {
+    [RequireRole(UserRole.Admin)]
     public class MirrorJobsController : Controller
     {
         private readonly MirrorJobService _svc;
@@ -25,6 +28,7 @@ namespace DataBridge.Controllers
 
         public async Task<IActionResult> Index(string? search)
         {
+
             ViewData["Title"] = "Mirror Jobs";
             SetBreadcrumb();
             return View(await _svc.GetListAsync(search));

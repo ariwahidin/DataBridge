@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -836,6 +837,7 @@
         }
         .topbar-mobile-toggle svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     @await RenderSectionAsync("Styles", required: false)
 </head>
 <body>
@@ -887,47 +889,70 @@
                     <span class="nav-label">Dashboard</span>
                 </a>
 
-                <a href="/Sources"
-                   class="nav-item @(currentPath.StartsWith("/Sources") ? "active" : "")"
-                   data-tooltip="Sources">
-                    <span class="nav-icon">
-                        <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-                    </span>
-                    <span class="nav-label">Sources</span>
-                </a>
             </div>
 
+                @if (isAdmin)
+
+                {
+
+                    <div class="nav-section">
+                        <div class="nav-section-label">Mirroring</div>
+
+                        <a href="/MirrorJobs"
+                        class="nav-item @(currentPath.StartsWith("/MirrorJobs") ? "active" : "")"
+                        data-tooltip="Mirror Jobs">
+                            <span class="nav-icon">
+                                <svg viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+                            </span>
+                            <span class="nav-label">Mirror Jobs</span>
+                        </a>
+
+                        <a href="/Schedules"
+                        class="nav-item @(currentPath.StartsWith("/Schedules") ? "active" : "")"
+                        data-tooltip="Schedules">
+                            <span class="nav-icon">
+                                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            </span>
+                            <span class="nav-label">Schedules</span>
+                        </a>
+
+                        <a href="/JobHistory"
+                        class="nav-item @(currentPath.StartsWith("/JobHistory") ? "active" : "")"
+                        data-tooltip="Job History">
+                            <span class="nav-icon">
+                                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            </span>
+                            <span class="nav-label">Job History</span>
+                        </a>
+                    </div>
+
+                }
             <div class="nav-section">
-                <div class="nav-section-label">Mirroring</div>
+                <div class="nav-section-label">Reports</div>
 
-                <a href="/MirrorJobs"
-                   class="nav-item @(currentPath.StartsWith("/MirrorJobs") ? "active" : "")"
-                   data-tooltip="Mirror Jobs">
+                <a href="/ReportViewer"
+                    class="nav-item @(currentPath.StartsWith("/ReportViewer") ? "active" : "")">
                     <span class="nav-icon">
-                        <svg viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
                     </span>
-                    <span class="nav-label">Mirror Jobs</span>
+                    <span class="nav-label">Reports</span>
                 </a>
 
-                <a href="/Schedules"
-                   class="nav-item @(currentPath.StartsWith("/Schedules") ? "active" : "")"
-                   data-tooltip="Schedules">
-                    <span class="nav-icon">
-                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    </span>
-                    <span class="nav-label">Schedules</span>
-                </a>
+                @if (isAdmin)
+                    {
+                        <a href="/ReportBuilder"
+                        class="nav-item @(currentPath.StartsWith("/ReportBuilder") ? "active" : "")">
+                            <span class="nav-icon">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
+                            </span>
+                            <span class="nav-label">Report Builder</span>
+                        </a>
 
-                <a href="/JobHistory"
-                   class="nav-item @(currentPath.StartsWith("/JobHistory") ? "active" : "")"
-                   data-tooltip="Job History">
-                    <span class="nav-icon">
-                        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                    </span>
-                    <span class="nav-label">Job History</span>
-                </a>
-            </div>
+                    }
+                </div>
 
+            @if (isAdmin)
+            {
             <div class="nav-section">
                 <div class="nav-section-label">Mirror DB</div>
 
@@ -949,31 +974,37 @@
                     <span class="nav-label">Data Explorer</span>
                 </a>
             </div>
-
             <div class="nav-section">
                 <div class="nav-section-label">Config</div>
 
-                <a href="/EmailConfig"
-                   class="nav-item @(currentPath.StartsWith("/EmailConfig") ? "active" : "")"
-                   data-tooltip="Notifications">
-                    <span class="nav-icon">
-                        <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                    </span>
-                    <span class="nav-label">Notifications</span>
-                </a>
+                    <a href="/Sources"
+                        class="nav-item @(currentPath.StartsWith("/Sources") ? "active" : "")"
+                        data-tooltip="Sources">
+                        <span class="nav-icon">
+                            <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></svg>
+                        </span>
+                        <span class="nav-label">Sources</span>
+                    </a>
 
-                @if (isAdmin)
-                {
+                    <a href="/EmailConfig"
+                       class="nav-item @(currentPath.StartsWith("/EmailConfig") ? "active" : "")"
+                       data-tooltip="Notifications">
+                        <span class="nav-icon">
+                            <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        </span>
+                        <span class="nav-label">Notifications</span>
+                    </a>
                     <a href="/Users"
-                       class="nav-item @(currentPath.StartsWith("/Users") ? "active" : "")"
-                       data-tooltip="Users">
+                        class="nav-item @(currentPath.StartsWith("/Users") ? "active" : "")"
+                        data-tooltip="Users">
                         <span class="nav-icon">
                             <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                         </span>
                         <span class="nav-label">Users</span>
                     </a>
-                }
-            </div>
+                
+                </div>
+            }
 
         </div>
 

@@ -97,4 +97,32 @@ namespace DataBridge.Models.ViewModels.MirrorTableBuilder
         public string? DefaultValue { get; set; }
         public int OrdinalPosition { get; set; }
     }
+
+    // ── Edit schema viewmodel ─────────────────────────────────────────────────
+    public class EditSchemaViewModel
+    {
+        public string FullTableName { get; set; } = string.Empty;   // dbo.inventory
+        public string Schema { get; set; } = "dbo";
+        public string TableName { get; set; } = string.Empty;
+
+        // Kolom yang sudah ada (read dari DB)
+        public List<ExistingColumnViewModel> ExistingColumns { get; set; } = new();
+
+        // Kolom baru yang mau ditambah
+        public List<ColumnDefinitionViewModel> NewColumns { get; set; } = new();
+    }
+
+    public class ExistingColumnViewModel
+    {
+        public string ColumnName { get; set; } = string.Empty;
+        public string FullType { get; set; } = string.Empty;   // e.g. NVARCHAR(200)
+        public string DataType { get; set; } = string.Empty;
+        public bool IsNullable { get; set; }
+        public bool IsPrimaryKey { get; set; }
+        public bool IsIdentity { get; set; }
+
+        // Yang bisa diedit user
+        public bool MarkedForDrop { get; set; } = false;
+        public bool NewIsNullable { get; set; }                   // diisi dari IsNullable saat load
+    }
 }

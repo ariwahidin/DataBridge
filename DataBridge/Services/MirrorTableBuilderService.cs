@@ -394,5 +394,165 @@ namespace DataBridge.Services
             var parts = fullName.Split('.', 2);
             return parts.Length == 2 ? (parts[0], parts[1]) : ("dbo", fullName);
         }
+
+        public async Task<EditSchemaViewModel?> GetEditSchemaAsync(string fullTableName)
+        {
+            var parts = ParseTableName(fullTableName);
+            var cols = await GetColumnsAsync(fullTableName);
+
+            if (!cols.Any()) return null;
+
+            return new EditSchemaViewModel
+            {
+                FullTableName = fullTableName,
+                Schema = parts.schema,
+                TableName = parts.table,
+                ExistingColumns = cols.Select(c => new ExistingColumnViewModel
+                {
+                    ColumnName = c.ColumnName,
+                    FullType = c.FullType,
+                    DataType = c.DataType,
+                    IsNullable = c.IsNullable,
+                    NewIsNullable = c.IsNullable,
+                    IsPrimaryKey = c.IsPrimaryKey,
+                    IsIdentity = c.IsIdentity,
+                }).ToList(),
+                NewColumns = new List<ColumnDefinitionViewModel>()
+            };
+        }
+
+        // ── Apply schema edits ────────────────────────────────────────────────────
+        public async Task<(bool Ok, string? Error)> ApplySchemaEditAsync(EditSchemaViewModel vm)
+        {
+            var errors = new List<string>();
+
+            await using var conn = new SqlConnection(_connStr);
+            await conn.OpenAsync();
+
+            // 1. DROP kolom yang ditandai
+            foreach (var col in vm.ExistingColumns.Where(c => c.MarkedForDrop))
+            {
+                if (col.IsPrimaryKey)
+                {
+                    errors.Add($"Cannot drop primary key column [{col.ColumnName}].");
+                    continue;
+                }
+                if (col.IsIdentity)
+                {
+                    errors.Add($"Cannot drop identity column [{col.ColumnName}].");
+                    continue;
+                }
+
+                try
+                {
+                    // Hapus default constraint dulu kalau ada
+                    var dropDefaultSql = $@"
+                DECLARE @con NVARCHAR(256);
+                SELECT @con = dc.name
+                FROM sys.default_constraints dc
+                JOIN sys.columns sc ON dc.parent_object_id = sc.object_id
+                                    AND dc.parent_column_id = sc.column_id
+                WHERE sc.object_id = OBJECT_ID('{vm.Schema}.{vm.TableName}')
+                  AND sc.name = '{col.ColumnName}';
+                IF @con IS NOT NULL
+                    EXEC('ALTER TABLE [{vm.Schema}].[{vm.TableName}] DROP CONSTRAINT [' + @con + ']');";
+
+                    await using var dropDefaultCmd = new SqlCommand(dropDefaultSql, conn) { CommandTimeout = 60 };
+                    await dropDefaultCmd.ExecuteNonQueryAsync();
+
+                    var dropSql = $"ALTER TABLE [{vm.Schema}].[{vm.TableName}] DROP COLUMN [{col.ColumnName}]";
+                    await using var dropCmd = new SqlCommand(dropSql, conn) { CommandTimeout = 60 };
+                    await dropCmd.ExecuteNonQueryAsync();
+
+                    _logger.LogInformation("Dropped column [{Col}] from [{Table}]", col.ColumnName, vm.FullTableName);
+                }
+                catch (SqlException ex)
+                {
+                    errors.Add($"Drop [{col.ColumnName}]: {ex.Message}");
+                }
+            }
+
+            // 2. ALTER kolom nullable/not-null (hanya kalau berbeda & bukan identity/PK)
+            foreach (var col in vm.ExistingColumns.Where(c => !c.MarkedForDrop && c.IsNullable != c.NewIsNullable))
+            {
+                if (col.IsIdentity || col.IsPrimaryKey) continue;  // tidak bisa di-alter
+
+                try
+                {
+                    // Perlu tahu full type untuk ALTER COLUMN
+                    var alterSql = $"ALTER TABLE [{vm.Schema}].[{vm.TableName}] ALTER COLUMN [{col.ColumnName}] {col.FullType} {(col.NewIsNullable ? "NULL" : "NOT NULL")}";
+                    await using var alterCmd = new SqlCommand(alterSql, conn) { CommandTimeout = 60 };
+                    await alterCmd.ExecuteNonQueryAsync();
+
+                    _logger.LogInformation("Altered nullable [{Col}] on [{Table}] -> {Null}",
+                        col.ColumnName, vm.FullTableName, col.NewIsNullable ? "NULL" : "NOT NULL");
+                }
+                catch (SqlException ex)
+                {
+                    errors.Add($"Alter [{col.ColumnName}]: {ex.Message}");
+                }
+            }
+
+            // 3. ADD kolom baru
+            var newCols = (vm.NewColumns ?? new())
+                .Where(c => !string.IsNullOrWhiteSpace(c.ColumnName))
+                .ToList();
+
+            foreach (var col in newCols)
+            {
+                try
+                {
+                    var colType = BuildColType(col);
+                    var nullClause = col.IsNullable ? "NULL" : "NOT NULL";
+                    var defClause = string.IsNullOrWhiteSpace(col.DefaultValue) ? "" : $" DEFAULT ({col.DefaultValue})";
+
+                    var addSql = $"ALTER TABLE [{vm.Schema}].[{vm.TableName}] ADD [{col.ColumnName}] {colType} {nullClause}{defClause}";
+                    await using var addCmd = new SqlCommand(addSql, conn) { CommandTimeout = 60 };
+                    await addCmd.ExecuteNonQueryAsync();
+
+                    _logger.LogInformation("Added column [{Col}] to [{Table}]", col.ColumnName, vm.FullTableName);
+                }
+                catch (SqlException ex)
+                {
+                    errors.Add($"Add [{col.ColumnName}]: {ex.Message}");
+                }
+            }
+
+            if (errors.Any())
+                return (false, string.Join("\n", errors));
+
+            return (true, null);
+        }
+
+        // ── Rename table ──────────────────────────────────────────────────────────
+        public async Task<(bool Ok, string? Error)> RenameTableAsync(string fullTableName, string newName)
+        {
+            try
+            {
+                var parts = ParseTableName(fullTableName);
+
+                // Rename di Mirror DB pakai sp_rename
+                await using var conn = new SqlConnection(_connStr);
+                await conn.OpenAsync();
+                var renameSql = $"EXEC sp_rename '[{parts.schema}].[{parts.table}]', '{newName}'";
+                await using var cmd = new SqlCommand(renameSql, conn) { CommandTimeout = 60 };
+                await cmd.ExecuteNonQueryAsync();
+
+                // Update registry
+                var reg = await _db.MirrorTableRegistries
+                    .FirstOrDefaultAsync(r => r.Schema == parts.schema && r.TableName == parts.table);
+                if (reg != null)
+                {
+                    reg.TableName = newName;
+                    await _db.SaveChangesAsync();
+                }
+
+                return (true, null);
+            }
+            catch (SqlException ex)
+            {
+                return (false, ex.Message);
+            }
+        }
     }
 }

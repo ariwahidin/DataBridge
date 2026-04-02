@@ -1,6 +1,8 @@
-﻿using DataBridge.Models.ViewModels.MirrorTableBuilder;
+﻿using DataBridge.Data;
+using DataBridge.Models.ViewModels.MirrorTableBuilder;
 using Microsoft.Data.SqlClient;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 
 namespace DataBridge.Services
 {
@@ -18,58 +20,104 @@ namespace DataBridge.Services
     {
         private readonly string _connStr;
         private readonly ILogger<MirrorDataExplorerService> _logger;
+        private readonly AppDbContext _db;
 
         // Whitelist of safe sort directions
         private static readonly HashSet<string> AllowedSortDirs = new(StringComparer.OrdinalIgnoreCase)
             { "asc", "desc" };
 
-        public MirrorDataExplorerService(IConfiguration config, ILogger<MirrorDataExplorerService> logger)
+        public MirrorDataExplorerService(IConfiguration config, ILogger<MirrorDataExplorerService> logger, AppDbContext db)
         {
             _connStr = config.GetConnectionString("MirrorConnection")
                        ?? throw new InvalidOperationException("MirrorConnection not configured.");
             _logger = logger;
+            _db = db;
         }
 
         // ── List tables (shared with builder) ─────────────────────────────────
+
         public async Task<List<TableInfoViewModel>> GetAllTablesAsync()
         {
+            var registries = await _db.MirrorTableRegistries.ToListAsync();
+
             var result = new List<TableInfoViewModel>();
-            const string sql = @"
-                SELECT 
-                    t.TABLE_SCHEMA,
-                    t.TABLE_NAME,
-                    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS c
-                     WHERE c.TABLE_NAME = t.TABLE_NAME AND c.TABLE_SCHEMA = t.TABLE_SCHEMA) AS ColumnCount,
-                    SUM(p.rows) AS TotalRows
-                FROM INFORMATION_SCHEMA.TABLES t
-                JOIN sys.objects obj ON obj.name = t.TABLE_NAME AND obj.type = 'U'
-                JOIN sys.partitions p ON p.object_id = obj.object_id AND p.index_id IN (0,1)
-                WHERE t.TABLE_TYPE = 'BASE TABLE'
-                GROUP BY t.TABLE_SCHEMA, t.TABLE_NAME
-                ORDER BY t.TABLE_NAME";
 
             await using var conn = new SqlConnection(_connStr);
             await conn.OpenAsync();
-            await using var cmd = new SqlCommand(sql, conn);
-            await using var reader = await cmd.ExecuteReaderAsync();
 
-            while (await reader.ReadAsync())
+            foreach (var reg in registries)
             {
-                result.Add(new TableInfoViewModel
+                // Get column count & row count per table dari mirror DB
+                var sql = $@"
+            SELECT 
+                (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                 WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = @table) AS ColumnCount,
+                SUM(p.rows) AS TotalRows
+            FROM sys.objects obj
+            JOIN sys.partitions p ON p.object_id = obj.object_id AND p.index_id IN (0,1)
+            WHERE obj.name = @table AND obj.type = 'U'";
+
+                await using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@schema", reg.Schema);
+                cmd.Parameters.AddWithValue("@table", reg.TableName);
+
+                await using var reader = await cmd.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
                 {
-                    TableName = $"{reader.GetString(0)}.{reader.GetString(1)}",
-                    ColumnCount = reader.GetInt32(2),
-                    RowCount = reader.IsDBNull(3) ? 0 : Convert.ToInt64(reader.GetValue(3))
-                });
+                    result.Add(new TableInfoViewModel
+                    {
+                        TableName = reg.FullName,
+                        ColumnCount = reader.IsDBNull(0) ? 0 : reader.GetInt32(0),
+                        RowCount = reader.IsDBNull(1) ? 0 : Convert.ToInt64(reader.GetValue(1))
+                    });
+                }
             }
 
             return result;
         }
 
+        //public async Task<List<TableInfoViewModel>> GetAllTablesAsync()
+        //{
+        //    var result = new List<TableInfoViewModel>();
+        //    const string sql = @"
+        //        SELECT 
+        //            t.TABLE_SCHEMA,
+        //            t.TABLE_NAME,
+        //            (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS c
+        //             WHERE c.TABLE_NAME = t.TABLE_NAME AND c.TABLE_SCHEMA = t.TABLE_SCHEMA) AS ColumnCount,
+        //            SUM(p.rows) AS TotalRows
+        //        FROM INFORMATION_SCHEMA.TABLES t
+        //        JOIN sys.objects obj ON obj.name = t.TABLE_NAME AND obj.type = 'U'
+        //        JOIN sys.partitions p ON p.object_id = obj.object_id AND p.index_id IN (0,1)
+        //        WHERE t.TABLE_TYPE = 'BASE TABLE'
+        //        GROUP BY t.TABLE_SCHEMA, t.TABLE_NAME
+        //        ORDER BY t.TABLE_NAME";
+
+        //    await using var conn = new SqlConnection(_connStr);
+        //    await conn.OpenAsync();
+        //    await using var cmd = new SqlCommand(sql, conn);
+        //    await using var reader = await cmd.ExecuteReaderAsync();
+
+        //    while (await reader.ReadAsync())
+        //    {
+        //        result.Add(new TableInfoViewModel
+        //        {
+        //            TableName = $"{reader.GetString(0)}.{reader.GetString(1)}",
+        //            ColumnCount = reader.GetInt32(2),
+        //            RowCount = reader.IsDBNull(3) ? 0 : Convert.ToInt64(reader.GetValue(3))
+        //        });
+        //    }
+
+        //    return result;
+        //}
+
         // ── Get columns ───────────────────────────────────────────────────────
         public async Task<List<ColumnInfoViewModel>> GetColumnsAsync(string fullTableName)
         {
-            var parts = ParseTableName(fullTableName);
+            var parts = ParseTableName(fullTableName);    
+            _logger.LogInformation("GetColumnsAsync called: fullTableName={Full}, schema={Schema}, table={Table}",
+    fullTableName, parts.schema, parts.table);
+            _logger.LogInformation("Using connection: {Conn}", _connStr);
             var result = new List<ColumnInfoViewModel>();
 
             const string sql = @"

@@ -1,0 +1,362 @@
+﻿@model DataBridge.Models.ViewModels.ReportBuilder.ReportFormViewModel
+@{
+    bool isEdit = Model.Id > 0;
+    ViewData["Title"] = isEdit ? "Create Report" : "New Report";
+    var paramTypes = Enum.GetNames<DataBridge.Models.Entities.ReportParamType>();
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">@(isEdit ? "Create Report" : "New Report")</h1>
+        <p class="page-subtitle">@(isEdit? Model.Name: "Define a new report")</p>
+    </div>
+    <a href="/ReportBuilder" class="btn btn-ghost">← Back</a>
+</div>
+
+<form asp-action="@(isEdit ? "Edit" : "Create")" method="post" id="reportForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+
+    <div class="row g-4">
+
+        <!-- Left: Settings + SQL -->
+        <div class="col-lg-5">
+
+            <!-- Settings -->
+            <div class="card mb-4">
+                <div class="card-header"><h6 class="card-title mb-0">Report Settings</h6></div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input asp-for="Name" class="form-control form-control-sm" placeholder="e.g. Monthly Sales" />
+                        <span asp-validation-for="Name" class="text-danger text-xs"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea asp-for="Description" class="form-control form-control-sm" rows="2" placeholder="Optional description"></textarea>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" />
+                        <label class="form-check-label" asp-for="IsActive">Active (visible to users)</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SQL Editor -->
+            <div class="card">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h6 class="card-title mb-0">SQL Query</h6>
+                    <button type="button" class="btn btn-sm btn-ghost" id="testQueryBtn">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                        Test Query
+                    </button>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted text-xs mb-2">
+                        Gunakan <code>{{ParamName}}</code> untuk parameter. Untuk DateRange gunakan <code>updated_at {{DateRange}}</code> (akan di-replace jadi <code>BETWEEN @@from AND @@to</code>).
+                    </p>
+                    <textarea asp-for="SqlQuery"
+                              class="form-control form-control-sm"
+                              rows="10"
+                              style="font-family:var(--mono);font-size:12px"
+                              placeholder="SELECT col1, col2 FROM dbo.inventory WHERE created_at > {{StartDate}}"></textarea>
+                    <span asp-validation-for="SqlQuery" class="text-danger text-xs"></span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right: Parameters + Preview -->
+        <div class="col-lg-7">
+
+            <!-- Parameters -->
+            <div class="card mb-4">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h6 class="card-title mb-0">Parameters</h6>
+                    <button type="button" class="btn btn-sm btn-primary" id="addParamBtn">+ Add</button>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0" id="paramTable">
+                        <thead>
+                            <tr>
+                                <th style="width:32px"></th>
+                                <th>Param Name</th>
+                                <th>Label</th>
+                                <th style="width:120px">Type</th>
+                                <th style="width:60px" class="text-center">Required</th>
+                                <th>Default / Dropdown Source</th>
+                                <th style="width:36px"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="paramBody">
+                            @for (int i = 0; i < Model.Parameters.Count; i++)
+                            {
+                                var p = Model.Parameters[i];
+                                <tr class="param-row" data-idx="@i">
+                                    <input type="hidden" name="Parameters[@i].Id" value="@p.Id" />
+                                    <input type="hidden" name="Parameters[@i].SortOrder" value="@i" />
+                                    <td class="text-muted" style="cursor:grab">⣿</td>
+                                    <td>
+                                        <input type="text" name="Parameters[@i].ParamName" value="@p.ParamName"
+                                               class="form-control form-control-xs" placeholder="StartDate" />
+                                    </td>
+                                    <td>
+                                        <input type="text" name="Parameters[@i].Label" value="@p.Label"
+                                               class="form-control form-control-xs" placeholder="Start Date" />
+                                    </td>
+                                    <td>
+                                        <select name="Parameters[@i].ParamType" class="form-select form-select-xs param-type-sel" onchange="toggleDropdownHint(this)">
+                                            @foreach (var t in paramTypes)
+                                            {
+                                                <option value="@t" selected="@(p.ParamType.ToString() == t ? "selected" : null)">@t</option>
+                                            }
+                                        </select>
+                                    </td>
+                                    <td class="text-center">
+                                        <input type="checkbox" name="Parameters[@i].IsRequired" value="true" class="form-check-input" @(p.IsRequired ? "checked" : "") />
+                                        <input type="hidden" name="Parameters[@i].IsRequired" value="false" />
+                                    </td>
+                                    <td>
+                                        <input type="text" name="Parameters[@i].DefaultValue" value="@p.DefaultValue"
+                                               class="form-control form-control-xs mb-1 default-val"
+                                               placeholder="Default value" />
+                                        <input type="text" name="Parameters[@i].DropdownSource" value="@p.DropdownSource"
+                                               class="form-control form-control-xs dropdown-src"
+                                               placeholder='SQL or ["A","B"]'
+                                               style="@(p.ParamType == DataBridge.Models.Entities.ReportParamType.Dropdown ? "" : "display:none")" />
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-xs btn-ghost text-danger remove-param">✕</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <div id="paramEmpty" class="text-center text-muted text-sm p-3" style="@(Model.Parameters.Any() ? "display:none" : "")">
+                        No parameters. Click "+ Add" to add one.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Query Preview -->
+            <div class="card" id="previewCard" style="display:none">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h6 class="card-title mb-0">Query Preview</h6>
+                    <span id="previewMeta" class="text-muted text-xs"></span>
+                </div>
+
+                <!-- Test param inputs -->
+                <div class="card-body border-bottom" id="testParamInputs"></div>
+
+                <!-- Result table -->
+                <div class="card-body p-0" style="overflow-x:auto;max-height:320px;overflow-y:auto">
+                    <div id="previewLoading" class="text-center p-3" style="display:none">
+                        <div class="spinner-border spinner-border-sm text-muted"></div>
+                        <span class="ms-2 text-muted text-sm">Running query...</span>
+                    </div>
+                    <div id="previewError" class="alert alert-danger m-3" style="display:none"></div>
+                    <table class="table table-sm table-hover mb-0" id="previewTable" style="font-size:11px">
+                        <thead id="previewHead"></thead>
+                        <tbody id="previewBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-4">
+        <a href="/ReportBuilder" class="btn btn-ghost">Cancel</a>
+        <button type="submit" class="btn btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12" /></svg>
+            @(isEdit ? "Save Changes" : "Create Report")
+        </button>
+    </div>
+</form>
+
+@section Styles {
+    <style>
+        .form-control-xs {
+            height: 28px;
+            font-size: 12px;
+            padding: 2px 8px;
+        }
+
+        .form-select-xs {
+            height: 28px;
+            font-size: 12px;
+            padding: 2px 6px;
+        }
+
+        .btn-xs {
+            padding: 2px 6px;
+            font-size: 11px;
+        }
+    </style>
+}
+
+@section Scripts {
+    <script>
+        const PARAM_TYPES = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(paramTypes));
+        let paramIdx = @Model.Parameters.Count;
+
+        // ── Add param row ─────────────────────────────────────────────────────
+        document.getElementById('addParamBtn').addEventListener('click', () => {
+            const i = paramIdx++;
+            const tbody = document.getElementById('paramBody');
+            const row = document.createElement('tr');
+            row.className = 'param-row';
+            row.dataset.idx = i;
+            row.innerHTML = `
+                <input type="hidden" name="Parameters[${i}].Id"        value="0" />
+                <input type="hidden" name="Parameters[${i}].SortOrder" value="${i}" />
+                <td class="text-muted" style="cursor:grab">⣿</td>
+                <td><input type="text" name="Parameters[${i}].ParamName" class="form-control form-control-xs" placeholder="ParamName" /></td>
+                <td><input type="text" name="Parameters[${i}].Label"     class="form-control form-control-xs" placeholder="Label" /></td>
+                <td>
+                    <select name="Parameters[${i}].ParamType" class="form-select form-select-xs param-type-sel" onchange="toggleDropdownHint(this)">
+                        ${PARAM_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}
+                    </select>
+                </td>
+                <td class="text-center">
+                    <input type="checkbox" name="Parameters[${i}].IsRequired" value="true" class="form-check-input" checked />
+                    <input type="hidden"   name="Parameters[${i}].IsRequired" value="false" />
+                </td>
+                <td>
+                    <input type="text" name="Parameters[${i}].DefaultValue"   class="form-control form-control-xs mb-1 default-val" placeholder="Default value" />
+                    <input type="text" name="Parameters[${i}].DropdownSource" class="form-control form-control-xs dropdown-src" placeholder='SQL or ["A","B"]' style="display:none" />
+                </td>
+                <td><button type="button" class="btn btn-xs btn-ghost text-danger remove-param">✕</button></td>`;
+            tbody.appendChild(row);
+            updateParamEmpty();
+        });
+
+        // ── Remove param ──────────────────────────────────────────────────────
+        document.getElementById('paramBody').addEventListener('click', e => {
+            if (e.target.closest('.remove-param')) {
+                e.target.closest('tr').remove();
+                reindexParams();
+                updateParamEmpty();
+            }
+        });
+
+        function reindexParams() {
+            document.querySelectorAll('#paramBody tr').forEach((row, i) => {
+                row.querySelectorAll('[name]').forEach(el => {
+                    el.name = el.name.replace(/Parameters\[\d+\]/, `Parameters[${i}]`);
+                });
+            });
+            paramIdx = document.querySelectorAll('#paramBody tr').length;
+        }
+
+        function updateParamEmpty() {
+            const has = document.querySelectorAll('#paramBody tr').length > 0;
+            document.getElementById('paramEmpty').style.display = has ? 'none' : '';
+        }
+
+        function toggleDropdownHint(sel) {
+            const row = sel.closest('tr');
+            row.querySelector('.dropdown-src').style.display = sel.value === 'Dropdown' ? '' : 'none';
+        }
+
+        // ── Test Query ────────────────────────────────────────────────────────
+        document.getElementById('testQueryBtn').addEventListener('click', () => {
+            const card = document.getElementById('previewCard');
+            card.style.display = '';
+
+            // Build test param inputs
+            const rows    = [...document.querySelectorAll('#paramBody tr')];
+            const inputsDiv = document.getElementById('testParamInputs');
+
+            if (rows.length === 0) {
+                inputsDiv.innerHTML = '<span class="text-muted text-sm">No parameters.</span>';
+            } else {
+                inputsDiv.innerHTML = '<div class="row g-2">' +
+                    rows.map(row => {
+                        const name  = row.querySelector('[name$=".ParamName"]')?.value || '';
+                        const label = row.querySelector('[name$=".Label"]')?.value || name;
+                        const type  = row.querySelector('.param-type-sel')?.value || 'Text';
+                        let input = '';
+                        if (type === 'Date')
+                            input = `<input type="date" class="form-control form-control-sm" data-param="${name}" />`;
+                        else if (type === 'DateRange')
+                            input = `<input type="date" class="form-control form-control-sm mb-1" data-param="${name}_from" />
+                                     <input type="date" class="form-control form-control-sm" data-param="${name}_to" />`;
+                        else if (type === 'Number')
+                            input = `<input type="number" class="form-control form-control-sm" data-param="${name}" />`;
+                        else
+                            input = `<input type="text" class="form-control form-control-sm" data-param="${name}" />`;
+                        return `<div class="col-md-4"><label class="form-label text-xs">${label}</label>${input}</div>`;
+                    }).join('') + '</div>' +
+                    `<div class="mt-2"><button type="button" class="btn btn-sm btn-primary" id="runPreviewBtn">Run Preview</button></div>`;
+
+                document.getElementById('runPreviewBtn').addEventListener('click', runPreview);
+            }
+
+            // Auto-run if no params
+            if (rows.length === 0) runPreview();
+        });
+
+        async function runPreview() {
+            document.getElementById('previewLoading').style.display = '';
+            document.getElementById('previewError').style.display   = 'none';
+            document.getElementById('previewTable').style.display   = 'none';
+
+            // Collect param values
+            const values = {};
+            document.querySelectorAll('#testParamInputs [data-param]').forEach(el => {
+                const key = el.dataset.param;
+                if (key.endsWith('_from') || key.endsWith('_to')) {
+                    const base = key.replace(/_from$|_to$/, '');
+                    if (!values[base]) values[base] = '';
+                    if (key.endsWith('_from')) values[base] = el.value + '|' + (values[base].split('|')[1] || '');
+                    else values[base] = (values[base].split('|')[0] || '') + '|' + el.value;
+                } else {
+                    values[key] = el.value;
+                }
+            });
+
+            // Collect param defs
+            const params = [...document.querySelectorAll('#paramBody tr')].map(row => ({
+                ParamName : row.querySelector('[name$=".ParamName"]')?.value || '',
+                Label     : row.querySelector('[name$=".Label"]')?.value || '',
+                ParamType : row.querySelector('.param-type-sel')?.value || 'Text',
+                IsRequired: row.querySelector('[name$=".IsRequired"][type=checkbox]')?.checked ?? true,
+            }));
+
+            const sql = document.querySelector('[name=SqlQuery]').value;
+
+            try {
+                const resp = await fetch('/ReportBuilder/Preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sql, params, values })
+                });
+                const data = await resp.json();
+                document.getElementById('previewLoading').style.display = 'none';
+
+                if (data.error) {
+                    document.getElementById('previewError').style.display = '';
+                    document.getElementById('previewError').textContent   = data.error;
+                    return;
+                }
+
+                document.getElementById('previewMeta').textContent =
+                    `${data.totalRows} row(s)${data.truncated ? ' (truncated)' : ''}`;
+
+                const thead = document.getElementById('previewHead');
+                const tbody = document.getElementById('previewBody');
+                thead.innerHTML = '<tr>' + data.columns.map(c => `<th>${c}</th>`).join('') + '</tr>';
+                tbody.innerHTML = data.rows.map(row =>
+                    '<tr>' + data.columns.map(c => `<td>${row[c] ?? '<span class="text-muted fst-italic">NULL</span>'}</td>`).join('') + '</tr>'
+                ).join('');
+
+                document.getElementById('previewTable').style.display = '';
+            } catch (err) {
+                document.getElementById('previewLoading').style.display = 'none';
+                document.getElementById('previewError').style.display   = '';
+                document.getElementById('previewError').textContent     = err.message;
+            }
+        }
+    </script>
+}

@@ -15,6 +15,9 @@ namespace DataBridge.Data
         public DbSet<EmailConfig> EmailConfigs { get; set; }
         public DbSet<MirrorTableRegistry> MirrorTableRegistries { get; set; }
 
+        public DbSet<ReportDefinition> ReportDefinitions { get; set; }
+        public DbSet<ReportParameter> ReportParameters { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -104,6 +107,30 @@ namespace DataBridge.Data
                 e.HasOne(x => x.MirrorJob)
                  .WithOne(x => x.EmailConfig)
                  .HasForeignKey<EmailConfig>(x => x.MirrorJobId)
+                 .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── ReportDefinition ──────────────────────────────────────────────
+            modelBuilder.Entity<ReportDefinition>(e =>
+            {
+                e.ToTable("ReportDefinitions");
+                e.HasKey(x => x.Id);
+                e.Property(x => x.Name).IsRequired().HasMaxLength(200);
+                e.Property(x => x.SqlQuery).IsRequired();
+                e.Property(x => x.CreatedBy).HasMaxLength(100);
+            });
+
+            // ── ReportParameter ───────────────────────────────────────────────
+            modelBuilder.Entity<ReportParameter>(e =>
+            {
+                e.ToTable("ReportParameters");
+                e.HasKey(x => x.Id);
+                e.Property(x => x.ParamName).IsRequired().HasMaxLength(100);
+                e.Property(x => x.Label).IsRequired().HasMaxLength(200);
+                e.Property(x => x.DropdownSource).HasMaxLength(2000);
+                e.HasOne(x => x.ReportDefinition)
+                 .WithMany(x => x.Parameters)
+                 .HasForeignKey(x => x.ReportDefinitionId)
                  .OnDelete(DeleteBehavior.Cascade);
             });
         }

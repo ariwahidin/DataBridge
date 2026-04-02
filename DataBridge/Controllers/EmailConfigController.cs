@@ -1,9 +1,12 @@
-﻿using DataBridge.Models.ViewModels.EmailConfig;
+﻿using DataBridge.Filters;
+using DataBridge.Models.Enums;
+using DataBridge.Models.ViewModels.EmailConfig;
 using DataBridge.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DataBridge.Controllers
 {
+    [RequireRole(UserRole.Admin)]
     public class EmailConfigController : Controller
     {
         private readonly EmailConfigService _svc;

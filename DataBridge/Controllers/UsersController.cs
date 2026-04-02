@@ -1,3 +1,4 @@
+using DataBridge.Filters;
 using DataBridge.Models.Enums;
 using DataBridge.Models.ViewModels.Users;
 using DataBridge.Services;
@@ -5,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace DataBridge.Controllers
 {
+    [RequireRole(UserRole.Admin)]
     public class UsersController : Controller
     {
         private readonly UserService _userService;
