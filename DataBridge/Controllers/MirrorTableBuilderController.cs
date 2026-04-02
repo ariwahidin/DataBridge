@@ -43,6 +43,7 @@ namespace DataBridge.Controllers
 
         // ── 3. Execute CREATE TABLE ───────────────────────────────────────────
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("TableBuilder", "CreateTable")]
         public async Task<IActionResult> Create(CreateTableViewModel vm)
         {
             ViewData["Title"] = "Create Table";
@@ -74,6 +75,7 @@ namespace DataBridge.Controllers
 
         // ── 4. Drop table ─────────────────────────────────────────────────────
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("TableBuilder", "DropTable")]
         public async Task<IActionResult> Drop(string tableName)
         {
             var (ok, err) = await _svc.DropTableAsync(tableName);
@@ -108,6 +110,7 @@ namespace DataBridge.Controllers
 
         // ── 7. Apply schema edits ─────────────────────────────────────────────────
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("TableBuilder", "EditSchema")]
         public async Task<IActionResult> Edit(EditSchemaViewModel vm)
         {
             ViewData["Title"] = $"Edit Schema — {vm.FullTableName}";
@@ -129,6 +132,7 @@ namespace DataBridge.Controllers
 
         // ── 8. Rename table form (modal POST) ─────────────────────────────────────
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("TableBuilder", "RenameTable")]
         public async Task<IActionResult> Rename(string tableName, string newName)
         {
             if (string.IsNullOrWhiteSpace(newName))

@@ -133,6 +133,7 @@ builder.Services.AddHostedService<SchedulerHostedService>();
 builder.Services.AddScoped<MirrorTableBuilderService>();
 builder.Services.AddScoped<MirrorDataExplorerService>();
 builder.Services.AddScoped<ReportBuilderService>();
+builder.Services.AddSingleton<ActivityLogService>();
 
 var app = builder.Build();
 

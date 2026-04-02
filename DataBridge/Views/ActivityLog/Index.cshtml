@@ -1,0 +1,156 @@
+﻿@using DataBridge.Models.Entities
+@{
+    ViewData["Title"] = "Activity Log";
+    var items      = ViewBag.Items      as List<ActivityLog> ?? new();
+    var modules    = ViewBag.Modules    as List<string> ?? new();
+    int page       = ViewBag.Page;
+    int totalPages = ViewBag.TotalPages;
+    int total      = ViewBag.Total;
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Activity Log</h1>
+        <p class="page-subtitle">@total.ToString("N0") total records</p>
+    </div>
+</div>
+
+@if (TempData["Success"] != null) { <div class="alert alert-success mb-4">@TempData["Success"]</div> }
+
+<!-- Filter Bar -->
+<div class="card mb-4">
+    <div class="card-body py-2">
+        <form method="get" class="d-flex flex-wrap gap-2 align-items-end">
+            <div>
+                <label class="form-label text-xs mb-1">Username</label>
+                <input type="text" name="username" value="@ViewBag.FilterUsername"
+                       class="form-control form-control-sm" placeholder="Filter username..." style="width:140px" />
+            </div>
+            <div>
+                <label class="form-label text-xs mb-1">Module</label>
+                <select name="module" class="form-select form-select-sm" style="width:150px">
+                    <option value="">All modules</option>
+                    @foreach (var m in modules)
+                    { <option value="@m" selected="@(ViewBag.FilterModule == m ? "selected" : null)">@m</option> }
+                </select>
+            </div>
+            <div>
+                <label class="form-label text-xs mb-1">Action</label>
+                <!-- Ganti name="action" → name="actionFilter" -->
+                <input type="text" name="actionFilter" value="@ViewBag.FilterAction"
+                       class="form-control form-control-sm" placeholder="e.g. Login" style="width:120px" />
+            </div>
+            <div>
+                <label class="form-label text-xs mb-1">Status</label>
+                <select name="isSuccess" class="form-select form-select-sm" style="width:120px">
+                    <option value="">All</option>
+                    <option value="true"  selected="@(ViewBag.FilterIsSuccess == true  ? "selected" : null)">Success</option>
+                    <option value="false" selected="@(ViewBag.FilterIsSuccess == false ? "selected" : null)">Failed</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label text-xs mb-1">From</label>
+                <input type="date" name="dateFrom" value="@ViewBag.FilterDateFrom"
+                       class="form-control form-control-sm" style="width:140px" />
+            </div>
+            <div>
+                <label class="form-label text-xs mb-1">To</label>
+                <input type="date" name="dateTo" value="@ViewBag.FilterDateTo"
+                       class="form-control form-control-sm" style="width:140px" />
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+                <a href="/ActivityLog" class="btn btn-sm btn-ghost">Clear</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="card">
+    <div class="card-body p-0">
+        @if (!items.Any())
+        {
+            <div class="text-center text-muted p-5">No activity logs found.</div>
+        }
+        else
+        {
+            <div style="overflow-x:auto">
+                <table class="table table-hover table-sm mb-0" style="font-size:12px">
+                    <thead>
+                        <tr>
+                            <th style="width:150px">Timestamp</th>
+                            <th style="width:120px">User</th>
+                            <th style="width:60px">Role</th>
+                            <th style="width:120px">Module</th>
+                            <th style="width:110px">Action</th>
+                            <th>Description</th>
+                            <th style="width:70px" class="text-center">Status</th>
+                            <th style="width:110px">IP Address</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var log in items)
+                        {
+                            <tr>
+                                <td class="text-muted" style="white-space:nowrap">
+                                    @log.Timestamp.ToString("dd MMM yyyy HH:mm:ss")
+                                </td>
+                                <td>
+                                    <div class="fw-medium">@(log.Username ?? "—")</div>
+                                    @if (!string.IsNullOrWhiteSpace(log.FullName) && log.FullName != log.Username)
+                                    { <div class="text-muted" style="font-size:11px">@log.FullName</div> }
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(log.Role))
+                                    { <span class="badge badge-secondary" style="font-size:10px">@log.Role</span> }
+                                </td>
+                                <td>
+                                    <span class="badge badge-info" style="font-size:10px">@log.Module</span>
+                                </td>
+                                <td style="white-space:nowrap">@log.Action</td>
+                                <td>
+                                    <span title="@log.Description">
+                                        @(log.Description?.Length > 80 ? log.Description[..80] + "…" : log.Description ?? "—")
+                                    </span>
+                                    @if (!string.IsNullOrWhiteSpace(log.ErrorMessage))
+                                    {
+                                        <div class="text-danger" style="font-size:11px" title="@log.ErrorMessage">
+                                            ⚠ @(log.ErrorMessage.Length > 60 ? log.ErrorMessage[..60] + "…" : log.ErrorMessage)
+                                        </div>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (log.IsSuccess)
+                                    { <span class="badge" style="background:var(--success-bg);color:var(--success);font-size:10px">OK</span> }
+                                    else
+                                    { <span class="badge" style="background:var(--danger-bg);color:var(--danger);font-size:10px">FAIL</span> }
+                                </td>
+                                <td class="text-muted" style="font-size:11px">@(log.IpAddress ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    @if (totalPages > 1)
+    {
+        <div class="card-footer d-flex align-items-center justify-content-between">
+            <span class="text-muted text-sm">Page @@page of @@totalPages</span>
+            <div class="d-flex gap-1">
+                @if (page > 1)
+                {
+                    <a href="?page=@(page - 1)&username=@ViewBag.FilterUsername&module=@ViewBag.FilterModule&actionFilter=@ViewBag.FilterAction&isSuccess=@ViewBag.FilterIsSuccess&dateFrom=@ViewBag.FilterDateFrom&dateTo=@ViewBag.FilterDateTo"
+                       class="btn btn-xs btn-ghost">‹ Prev</a>
+                }
+                @if (page < totalPages)
+                {
+                    <a href="?page=@(page + 1)&username=@ViewBag.FilterUsername&module=@ViewBag.FilterModule&actionFilter=@ViewBag.FilterAction&isSuccess=@ViewBag.FilterIsSuccess&dateFrom=@ViewBag.FilterDateFrom&dateTo=@ViewBag.FilterDateTo"
+                       class="btn btn-xs btn-ghost">Next ›</a>
+                }
+            </div>
+        </div>
+    }
+</div>

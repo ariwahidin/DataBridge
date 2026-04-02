@@ -43,6 +43,7 @@ namespace DataBridge.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("MirrorJobs", "Create")]
         public async Task<IActionResult> Create(MirrorJobFormViewModel vm)
         {
             ViewData["Title"] = "New Mirror Job";
@@ -65,6 +66,7 @@ namespace DataBridge.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("MirrorJobs", "Edit")]
         public async Task<IActionResult> Edit(MirrorJobFormViewModel vm)
         {
             ViewData["Title"] = "Edit Mirror Job";
@@ -77,6 +79,7 @@ namespace DataBridge.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("MirrorJobs", "Delete")]
         public async Task<IActionResult> Delete(int id)
         {
             var (ok, err) = await _svc.DeleteAsync(id);
@@ -86,6 +89,7 @@ namespace DataBridge.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("MirrorJobs", "ToggleActive")]
         public async Task<IActionResult> ToggleActive(int id)
         {
             var (ok, err) = await _svc.ToggleActiveAsync(id);
@@ -94,6 +98,7 @@ namespace DataBridge.Controllers
 
         // ── REAL manual trigger ───────────────────────────────────────────────
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("MirrorJobs", "TriggerRun", "Manual sync triggered")]
         public async Task<IActionResult> TriggerRun(int id)
         {
             var username = HttpContext.Session.GetString("Username") ?? "Manual";

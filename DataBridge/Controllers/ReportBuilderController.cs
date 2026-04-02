@@ -40,6 +40,7 @@ namespace DataBridge.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("ReportBuilder", "Create")]
         public async Task<IActionResult> Create(ReportFormViewModel vm)
         {
             ViewData["Title"] = "New Report";
@@ -65,6 +66,7 @@ namespace DataBridge.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("ReportBuilder", "Edit")]
         public async Task<IActionResult> Edit(ReportFormViewModel vm)
         {
             ViewData["Title"] = "Edit Report";
@@ -80,6 +82,7 @@ namespace DataBridge.Controllers
 
         // ── Delete ────────────────────────────────────────────────────────────
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("ReportBuilder", "Delete")]
         public async Task<IActionResult> Delete(int id)
         {
             var (ok, err) = await _svc.DeleteAsync(id);

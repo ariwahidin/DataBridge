@@ -1,4 +1,5 @@
-﻿using DataBridge.Services;
+﻿using DataBridge.Filters;
+using DataBridge.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DataBridge.Controllers
@@ -6,8 +7,14 @@ namespace DataBridge.Controllers
     public class ReportViewerController : Controller
     {
         private readonly ReportBuilderService _svc;
+        private readonly ActivityLogService _logSvc;
 
-        public ReportViewerController(ReportBuilderService svc) => _svc = svc;
+        public ReportViewerController(ReportBuilderService svc, ActivityLogService logSvc)
+        {
+            _svc = svc;
+            _logSvc = logSvc;
+        }
+
 
         private void SetBreadcrumb(params (string Label, string Url)[] extra)
         {
@@ -42,11 +49,14 @@ namespace DataBridge.Controllers
         public async Task<IActionResult> Execute([FromBody] ExecuteRequest req)
         {
             var result = await _svc.ExecuteAsync(req.ReportId, req.Values);
+            _logSvc.Log("ReportViewer", "RunReport",
+                description: $"Ran report ID {req.ReportId}, {result.TotalRows} rows");
             return Json(result);
         }
 
         // ── Download Excel ────────────────────────────────────────────────────
         [HttpGet]
+        [LogActivity("ReportViewer", "DownloadExcel")]
         public async Task<IActionResult> DownloadExcel(int id, [FromQuery] Dictionary<string, string> values)
         {
             try

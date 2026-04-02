@@ -17,6 +17,7 @@ namespace DataBridge.Data
 
         public DbSet<ReportDefinition> ReportDefinitions { get; set; }
         public DbSet<ReportParameter> ReportParameters { get; set; }
+        public DbSet<ActivityLog> ActivityLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -132,6 +133,26 @@ namespace DataBridge.Data
                  .WithMany(x => x.Parameters)
                  .HasForeignKey(x => x.ReportDefinitionId)
                  .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── ActivityLog ───────────────────────────────────────────────────
+            modelBuilder.Entity<ActivityLog>(e =>
+            {
+                e.ToTable("ActivityLogs");
+                e.HasKey(x => x.Id);
+                e.Property(x => x.Module).IsRequired().HasMaxLength(100);
+                e.Property(x => x.Action).IsRequired().HasMaxLength(100);
+                e.Property(x => x.Username).HasMaxLength(100);
+                e.Property(x => x.FullName).HasMaxLength(200);
+                e.Property(x => x.Role).HasMaxLength(50);
+                e.Property(x => x.IpAddress).HasMaxLength(50);
+                e.Property(x => x.UserAgent).HasMaxLength(500);
+                e.Property(x => x.Description).HasMaxLength(1000);
+                e.Property(x => x.ErrorMessage).HasMaxLength(2000);
+                // Index untuk query cepat
+                e.HasIndex(x => x.Timestamp);
+                e.HasIndex(x => x.UserId);
+                e.HasIndex(x => x.Module);
             });
         }
     }

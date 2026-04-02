@@ -61,6 +61,7 @@ namespace DataBridge.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [LogActivity("Users", "Create")]
         public async Task<IActionResult> Create(UserCreateViewModel vm)
         {
             var guard = RequireAdmin();
@@ -106,6 +107,7 @@ namespace DataBridge.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [LogActivity("Users", "Edit")]
         public async Task<IActionResult> Edit(UserEditViewModel vm)
         {
             var guard = RequireAdmin();
@@ -151,6 +153,7 @@ namespace DataBridge.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [LogActivity("Users", "ResetPassword")]
         public async Task<IActionResult> ResetPassword(ResetPasswordViewModel vm)
         {
             var guard = RequireAdmin();
@@ -178,6 +181,7 @@ namespace DataBridge.Controllers
         // ─── TOGGLE ACTIVE (AJAX) ────────────────────────────────────────
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [LogActivity("Users", "ToggleActive")]
         public async Task<IActionResult> ToggleActive(int id)
         {
             var guard = RequireAdmin();

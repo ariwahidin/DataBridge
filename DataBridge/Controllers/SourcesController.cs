@@ -36,6 +36,7 @@ namespace DataBridge.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("Sources", "Create")]
         public async Task<IActionResult> Create(SourceFormViewModel vm)
         {
             ViewData["Title"] = "New Source";
@@ -58,6 +59,7 @@ namespace DataBridge.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("Sources", "Edit")]
         public async Task<IActionResult> Edit(SourceFormViewModel vm)
         {
             ViewData["Title"] = "Edit Source";
@@ -70,6 +72,7 @@ namespace DataBridge.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("Sources", "Delete")]
         public async Task<IActionResult> Delete(int id)
         {
             var (ok, err) = await _svc.DeleteAsync(id);
@@ -79,6 +82,7 @@ namespace DataBridge.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
+        [LogActivity("Sources", "ToggleActive")]
         public async Task<IActionResult> ToggleActive(int id)
         {
             var (ok, err) = await _svc.ToggleActiveAsync(id);
